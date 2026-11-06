@@ -156,7 +156,7 @@ The bundle needs to know your article URLs. By default it builds them from a pat
 mattleads_agent_publishing:
     seo:
         base_url: https://example.com          # defaults to the current request's scheme and host
-        url_pattern: '{base}{section_path}/{slug}'   # also {locale} and {section}
+        url_pattern: '{base}{locale_prefix}{section_path}/{slug}'   # {locale_prefix} is "" for the default locale, "/de" otherwise; also {locale} and {section}
         site_name: Example Engineering Blog
         site_description: Articles on Symfony, PHP and running services in production.
         publisher: { name: Example Ltd, url: https://example.com, logo: https://example.com/logo.png }

@@ -76,7 +76,7 @@ final class Configuration
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->scalarNode('base_url')->info('Absolute site URL, e.g. "https://example.com". Defaults to the scheme and host of the current request.')->defaultNull()->end()
-                        ->scalarNode('url_pattern')->info('Placeholders: {base}, {section}, {section_path}, {locale}, {slug}.')->defaultValue('{base}{section_path}/{slug}')->cannotBeEmpty()->end()
+                        ->scalarNode('url_pattern')->info('Placeholders: {base}, {section}, {section_path}, {locale}, {locale_prefix} (empty for the default locale), {slug}.')->defaultValue('{base}{section_path}/{slug}')->cannotBeEmpty()->end()
                         ->scalarNode('url_resolver')->info('Service id implementing UrlResolverInterface, replacing the pattern.')->defaultNull()->end()
                         ->scalarNode('site_name')->defaultNull()->end()
                         ->scalarNode('site_description')->defaultNull()->end()

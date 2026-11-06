@@ -101,6 +101,13 @@ final class SeoBuildersTest extends TestCase
         self::assertSame(1, substr_count($limited, "\n- "));
     }
 
+    public function testLocalePrefixIsEmptyForTheDefaultLocale(): void
+    {
+        $resolver = new PatternUrlResolver($this->sections, '{base}{locale_prefix}{section_path}/{slug}', 'https://example.com');
+        self::assertSame('https://example.com/blog/hello', $resolver->urlFor($this->published('blog', 'en', 'Hello', 'hello', null, [], null)));
+        self::assertSame('https://example.com/de/blog/hallo', $resolver->urlFor($this->published('blog', 'de', 'Hallo', 'hallo', null, [], null)));
+    }
+
     public function testUrlResolverFallsBackToTheRequestHost(): void
     {
         $resolver = new PatternUrlResolver($this->sections);

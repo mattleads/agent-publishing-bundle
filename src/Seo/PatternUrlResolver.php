@@ -9,8 +9,9 @@ use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
- * Placeholders: {base}, {section}, {section_path}, {locale}, {slug}. The base URL comes from configuration or, when
- * unset, from the current request.
+ * Placeholders: {base}, {section}, {section_path}, {locale}, {locale_prefix}, {slug}. {locale_prefix} is "" for the
+ * default locale and "/xx" otherwise, the usual layout for multilingual sites. The base URL comes from configuration
+ * or, when unset, from the current request.
  */
 final class PatternUrlResolver implements UrlResolverInterface
 {
@@ -32,6 +33,7 @@ final class PatternUrlResolver implements UrlResolverInterface
             '{section}' => $article->getSection(),
             '{section_path}' => null !== $section ? rtrim($section->path, '/') : '/' . $article->getSection(),
             '{locale}' => $article->getLocale(),
+            '{locale_prefix}' => $article->getLocale() === $this->sections->defaultLocale() ? '' : '/' . $article->getLocale(),
             '{slug}' => $article->getSlug(),
         ]);
     }
