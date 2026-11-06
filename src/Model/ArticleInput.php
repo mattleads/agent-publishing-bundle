@@ -12,7 +12,7 @@ final class ArticleInput
     public const FORMATS = ['markdown', 'html'];
     public const MAX_TAGS = 20;
     public const MAX_TAG_LENGTH = 64;
-    private const FIELDS = ['section', 'locale', 'title', 'slug', 'summary', 'body', 'format', 'tags', 'translation_group'];
+    private const FIELDS = ['section', 'locale', 'title', 'slug', 'summary', 'body', 'format', 'tags', 'translation_group', 'meta_title', 'meta_description', 'cover_image', 'cover_image_alt', 'author'];
 
     /** @param list<string>|null $tags */
     public function __construct(
@@ -25,6 +25,11 @@ final class ArticleInput
         public readonly ?string $format = null,
         public readonly ?array $tags = null,
         public readonly ?string $translationGroup = null,
+        public readonly ?string $metaTitle = null,
+        public readonly ?string $metaDescription = null,
+        public readonly ?string $coverImage = null,
+        public readonly ?string $coverImageAlt = null,
+        public readonly ?string $author = null,
     ) {}
 
     /**
@@ -77,6 +82,15 @@ final class ArticleInput
         $body = $string('body', 1_000_000, true);
         $format = $string('format', 16, false);
         $translationGroup = $string('translation_group', 64, false);
+        $metaTitle = $string('meta_title', 200, false);
+        $metaDescription = $string('meta_description', 320, false);
+        $coverImage = $string('cover_image', 2048, false);
+        $coverImageAlt = $string('cover_image_alt', 200, false);
+        $author = $string('author', 64, false);
+
+        if (null !== $coverImage && '' !== $coverImage && !self::isAbsoluteHttpUrl($coverImage)) {
+            $violations[] = 'Field "cover_image" must be an absolute http(s) URL.';
+        }
 
         if (null !== $slug && !preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug)) {
             $violations[] = 'Field "slug" must contain only lowercase letters, digits and single dashes.';
@@ -113,6 +127,13 @@ final class ArticleInput
             throw new ValidationException($violations);
         }
 
-        return new self($section, $locale, $title, $slug, $summary, $body, $format, $tags, $translationGroup);
+        return new self($section, $locale, $title, $slug, $summary, $body, $format, $tags, $translationGroup, $metaTitle, $metaDescription, $coverImage, $coverImageAlt, $author);
+    }
+
+    private static function isAbsoluteHttpUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+
+        return \is_array($parts) && \in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) && '' !== ($parts['host'] ?? '');
     }
 }

@@ -14,7 +14,7 @@ final class McpServer
 {
     public const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
     public const SERVER_NAME = 'agent-publishing-bundle';
-    public const SERVER_VERSION = '0.2';
+    public const SERVER_VERSION = '0.3';
 
     public const PARSE_ERROR = -32700;
     public const INVALID_REQUEST = -32600;

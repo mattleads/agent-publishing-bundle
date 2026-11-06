@@ -12,6 +12,7 @@ use MattLeads\AgentPublishingBundle\Model\ArticleFilter;
 use MattLeads\AgentPublishingBundle\Model\ArticleInput;
 use MattLeads\AgentPublishingBundle\Model\ArticleInterface;
 use MattLeads\AgentPublishingBundle\Model\ArticleState;
+use MattLeads\AgentPublishingBundle\Model\SlugRedirect;
 use Symfony\Component\Uid\Ulid;
 
 final class DoctrineArticleStorage implements ArticleStorageInterface
@@ -25,9 +26,14 @@ final class DoctrineArticleStorage implements ArticleStorageInterface
 
     public function list(ArticleFilter $filter): array
     {
+        $qb = $this->filtered($filter);
+        if ('published' === $filter->sort) {
+            $qb->orderBy('a.publishedAt', 'DESC');
+        } else {
+            $qb->orderBy('a.updatedAt', 'DESC');
+        }
         /** @var list<Article> $result */
-        $result = $this->filtered($filter)
-            ->orderBy('a.updatedAt', 'DESC')->addOrderBy('a.id', 'DESC')
+        $result = $qb->addOrderBy('a.id', 'DESC')
             ->setFirstResult($filter->offset())->setMaxResults($filter->perPage)
             ->getQuery()->getResult();
 
@@ -57,10 +63,29 @@ final class DoctrineArticleStorage implements ArticleStorageInterface
         return $this->em->getRepository(Article::class)->findOneBy(['section' => $section, 'locale' => $locale, 'slug' => $slug]);
     }
 
+    public function findByFormerSlug(string $section, string $locale, string $slug): ?ArticleInterface
+    {
+        $redirect = $this->em->getRepository(SlugRedirect::class)->findOneBy(['section' => $section, 'locale' => $locale, 'slug' => $slug]);
+
+        return null === $redirect ? null : $this->find($redirect->getArticleId());
+    }
+
+    public function formerSlugs(ArticleInterface $article): array
+    {
+        /** @var list<string> $slugs */
+        $slugs = $this->em->createQueryBuilder()->select('r.slug')->from(SlugRedirect::class, 'r')
+            ->andWhere('r.articleId = :id')->setParameter('id', $article->getId())
+            ->orderBy('r.createdAt', 'ASC')->addOrderBy('r.id', 'ASC')
+            ->getQuery()->getSingleColumnResult();
+
+        return $slugs;
+    }
+
     public function create(ArticleInput $input, string $slug, ?string $createdBy, \DateTimeImmutable $now): ArticleInterface
     {
         $article = new Article((string) new Ulid(), (string) $input->section, (string) $input->locale, (string) $input->title, $slug, (string) $input->body, $input->format ?? 'markdown', $now, $createdBy);
         $article->apply($input, null, $now);
+        $this->forgetFormerSlug($article->getSection(), $article->getLocale(), $slug);
         $this->em->persist($article);
         $this->em->flush();
 
@@ -70,6 +95,13 @@ final class DoctrineArticleStorage implements ArticleStorageInterface
     public function update(ArticleInterface $article, ArticleInput $input, ?string $slug, \DateTimeImmutable $now): ArticleInterface
     {
         $entity = $this->entity($article);
+        $previous = $entity->getSlug();
+        if (null !== $slug && $slug !== $previous) {
+            $this->forgetFormerSlug($entity->getSection(), $entity->getLocale(), $slug);
+            if (\in_array($entity->getState(), [ArticleState::Published, ArticleState::Scheduled], true)) {
+                $this->em->persist(new SlugRedirect($entity->getSection(), $entity->getLocale(), $previous, $entity->getId(), $now));
+            }
+        }
         $entity->apply($input, $slug, $now);
         $this->em->flush();
 
@@ -83,6 +115,15 @@ final class DoctrineArticleStorage implements ArticleStorageInterface
         $this->em->flush();
 
         return $entity;
+    }
+
+    private function forgetFormerSlug(string $section, string $locale, string $slug): void
+    {
+        $this->em->createQueryBuilder()->delete(SlugRedirect::class, 'r')
+            ->andWhere('r.section = :section')->setParameter('section', $section)
+            ->andWhere('r.locale = :locale')->setParameter('locale', $locale)
+            ->andWhere('r.slug = :slug')->setParameter('slug', $slug)
+            ->getQuery()->execute();
     }
 
     private function entity(ArticleInterface $article): Article

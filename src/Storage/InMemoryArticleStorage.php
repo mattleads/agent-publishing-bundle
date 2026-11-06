@@ -20,6 +20,9 @@ final class InMemoryArticleStorage implements ArticleStorageInterface
     /** @var array<string, Article> */
     private array $articles = [];
 
+    /** @var array<string, string> "section|locale|slug" => article id, in the order the slugs were retired */
+    private array $formerSlugs = [];
+
     public function find(string $id): ?ArticleInterface
     {
         return $this->articles[$id] ?? null;
@@ -28,7 +31,10 @@ final class InMemoryArticleStorage implements ArticleStorageInterface
     public function list(ArticleFilter $filter): array
     {
         $matching = array_values(array_filter($this->articles, static fn(Article $a) => $filter->matches($a)));
-        usort($matching, static fn(Article $a, Article $b) => $b->getUpdatedAt() <=> $a->getUpdatedAt() ?: strcmp($b->getId(), $a->getId()));
+        $date = 'published' === $filter->sort
+            ? static fn(Article $a) => $a->getPublishedAt()
+            : static fn(Article $a) => $a->getUpdatedAt();
+        usort($matching, static fn(Article $a, Article $b) => $date($b) <=> $date($a) ?: strcmp($b->getId(), $a->getId()));
 
         return \array_slice($matching, $filter->offset(), $filter->perPage);
     }
@@ -60,10 +66,30 @@ final class InMemoryArticleStorage implements ArticleStorageInterface
         return null;
     }
 
+    public function findByFormerSlug(string $section, string $locale, string $slug): ?ArticleInterface
+    {
+        $id = $this->formerSlugs[self::slugKey($section, $locale, $slug)] ?? null;
+
+        return null === $id ? null : $this->find($id);
+    }
+
+    public function formerSlugs(ArticleInterface $article): array
+    {
+        $slugs = [];
+        foreach ($this->formerSlugs as $key => $id) {
+            if ($id === $article->getId()) {
+                $slugs[] = explode('|', $key, 3)[2];
+            }
+        }
+
+        return $slugs;
+    }
+
     public function create(ArticleInput $input, string $slug, ?string $createdBy, \DateTimeImmutable $now): ArticleInterface
     {
         $article = new Article((string) new Ulid(), (string) $input->section, (string) $input->locale, (string) $input->title, $slug, (string) $input->body, $input->format ?? 'markdown', $now, $createdBy);
         $article->apply($input, null, $now);
+        unset($this->formerSlugs[self::slugKey($article->getSection(), $article->getLocale(), $slug)]);
         $this->articles[$article->getId()] = $article;
 
         return $article;
@@ -72,6 +98,13 @@ final class InMemoryArticleStorage implements ArticleStorageInterface
     public function update(ArticleInterface $article, ArticleInput $input, ?string $slug, \DateTimeImmutable $now): ArticleInterface
     {
         $stored = $this->own($article);
+        $previous = $stored->getSlug();
+        if (null !== $slug && $slug !== $previous) {
+            unset($this->formerSlugs[self::slugKey($stored->getSection(), $stored->getLocale(), $slug)]);
+            if (\in_array($stored->getState(), [ArticleState::Published, ArticleState::Scheduled], true)) {
+                $this->formerSlugs[self::slugKey($stored->getSection(), $stored->getLocale(), $previous)] = $stored->getId();
+            }
+        }
         $stored->apply($input, $slug, $now);
 
         return $stored;
@@ -83,6 +116,11 @@ final class InMemoryArticleStorage implements ArticleStorageInterface
         $stored->transitionTo($to, $now, $note, $publishAt);
 
         return $stored;
+    }
+
+    private static function slugKey(string $section, string $locale, string $slug): string
+    {
+        return $section . '|' . $locale . '|' . $slug;
     }
 
     private function own(ArticleInterface $article): Article

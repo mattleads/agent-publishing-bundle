@@ -25,7 +25,7 @@ final class ListArticlesTool extends AbstractTool
 
     public function description(): string
     {
-        return 'List articles, newest updated first. Filter by section, locale and state (draft, in_review, scheduled, published, archived). Bodies are omitted; use get_article for one.';
+        return 'List articles, newest updated first (sort "published" for newest published first). Filter by section, locale and state (draft, in_review, scheduled, published, archived). Bodies are omitted; use get_article for one.';
     }
 
     public function inputSchema(): array
@@ -36,6 +36,7 @@ final class ListArticlesTool extends AbstractTool
             'state' => ['type' => 'string', 'enum' => array_map(static fn(ArticleState $s) => $s->value, ArticleState::cases())],
             'page' => ['type' => 'integer', 'minimum' => 1, 'default' => 1],
             'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => ArticleFilter::MAX_PER_PAGE, 'default' => 20],
+            'sort' => ['type' => 'string', 'enum' => ArticleFilter::SORTS, 'default' => 'updated'],
         ]);
     }
 
@@ -58,7 +59,7 @@ final class ListArticlesTool extends AbstractTool
             throw new ToolException(\sprintf('Unknown state "%s".', $state));
         }
         try {
-            $filter = new ArticleFilter($section, self::string($arguments, 'locale'), null === $state ? null : ArticleState::from($state), self::int($arguments, 'page', 1), self::int($arguments, 'per_page', 20));
+            $filter = new ArticleFilter($section, self::string($arguments, 'locale'), null === $state ? null : ArticleState::from($state), self::int($arguments, 'page', 1), self::int($arguments, 'per_page', 20), self::string($arguments, 'sort') ?? 'updated');
         } catch (ValidationException $e) {
             throw self::invalid($e);
         }

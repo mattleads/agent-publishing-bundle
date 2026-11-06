@@ -10,6 +10,8 @@ use MattLeads\AgentPublishingBundle\Api\ApiAccess;
 use MattLeads\AgentPublishingBundle\Api\ApiKeyNormalizer;
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
 use MattLeads\AgentPublishingBundle\Api\ArticleNormalizer;
+use MattLeads\AgentPublishingBundle\Api\AuthorController;
+use MattLeads\AgentPublishingBundle\Author\AuthorRegistry;
 use MattLeads\AgentPublishingBundle\Api\KeyController;
 use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
@@ -19,7 +21,9 @@ use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineArticleStorage;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineStatsStorage;
 use MattLeads\AgentPublishingBundle\Command\CreateApiKeyCommand;
+use MattLeads\AgentPublishingBundle\Command\ListApiKeysCommand;
 use MattLeads\AgentPublishingBundle\Command\PublishScheduledCommand;
+use MattLeads\AgentPublishingBundle\Command\RevokeApiKeyCommand;
 use MattLeads\AgentPublishingBundle\Contract\ApiKeyStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\StatsStorageInterface;
@@ -29,6 +33,7 @@ use MattLeads\AgentPublishingBundle\Lint\Rule\FaqRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\HeadingsRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\ImagesAltRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\LinksRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\MetaDescriptionRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\OpeningParagraphRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\ReadabilityRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\SlugRule;
@@ -41,6 +46,7 @@ use MattLeads\AgentPublishingBundle\Mcp\McpServer;
 use MattLeads\AgentPublishingBundle\Mcp\Tool\CreateDraftTool;
 use MattLeads\AgentPublishingBundle\Mcp\Tool\GetArticleTool;
 use MattLeads\AgentPublishingBundle\Mcp\Tool\LintTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\ListAuthorsTool;
 use MattLeads\AgentPublishingBundle\Mcp\Tool\ListArticlesTool;
 use MattLeads\AgentPublishingBundle\Mcp\Tool\ListSectionsTool;
 use MattLeads\AgentPublishingBundle\Mcp\Tool\StatsTool;
@@ -84,6 +90,11 @@ return static function (ContainerConfigurator $container): void {
             '$locales' => abstract_arg('from bundle config'),
             '$defaultLocale' => abstract_arg('from bundle config'),
         ]);
+    $services->set(AuthorRegistry::class)
+        ->args([
+            '$authors' => abstract_arg('from bundle config'),
+            '$defaultAuthor' => abstract_arg('from bundle config'),
+        ]);
 
     // --- storages (the bundle class aliases the interfaces to one of these or to host services) ---------------
     $services->set(InMemoryArticleStorage::class);
@@ -97,7 +108,13 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ArticleWorkflow::class)
         ->args([service(ArticleStorageInterface::class), service('event_dispatcher'), service('clock')->nullOnInvalid()]);
     $services->set(ArticleManager::class)
-        ->args([service(ArticleStorageInterface::class), service(SectionRegistry::class), service('clock')->nullOnInvalid()]);
+        ->args([
+            service(ArticleStorageInterface::class),
+            service(SectionRegistry::class),
+            service('clock')->nullOnInvalid(),
+            service(AuthorRegistry::class),
+            '$editPublished' => abstract_arg('from bundle config'),
+        ]);
     $services->set(ScheduledPublisher::class)
         ->args([service(ArticleStorageInterface::class), service(ArticleWorkflow::class), service('clock')->nullOnInvalid(), service('logger')->nullOnInvalid()]);
 
@@ -123,7 +140,7 @@ return static function (ContainerConfigurator $container): void {
     // --- lint -------------------------------------------------------------------------------------------------
     $services->set(ContentInspector::class);
     $priority = 100;
-    foreach ([TitleLengthRule::class, SummaryRule::class, OpeningParagraphRule::class, HeadingsRule::class, WordCountRule::class, ReadabilityRule::class, ImagesAltRule::class, TagsRule::class, FaqRule::class] as $rule) {
+    foreach ([TitleLengthRule::class, SummaryRule::class, MetaDescriptionRule::class, OpeningParagraphRule::class, HeadingsRule::class, WordCountRule::class, ReadabilityRule::class, ImagesAltRule::class, TagsRule::class, FaqRule::class] as $rule) {
         $services->set($rule)->tag('mattleads_agent_publishing.lint_rule', ['priority' => $priority--]);
     }
     $services->set(LinksRule::class)
@@ -150,6 +167,7 @@ return static function (ContainerConfigurator $container): void {
             '$type' => abstract_arg('from bundle config'),
             '$publisher' => abstract_arg('from bundle config'),
             '$author' => abstract_arg('from bundle config'),
+            '$authors' => service(AuthorRegistry::class),
         ])
         ->public();
     $services->set(SitemapBuilder::class)
@@ -173,12 +191,13 @@ return static function (ContainerConfigurator $container): void {
         ])
         ->tag('controller.service_arguments')->public();
     $services->set(JsonLdExtension::class)
-        ->args([service(JsonLdBuilder::class), service(UrlResolverInterface::class)]);
+        ->args([service(JsonLdBuilder::class), service(UrlResolverInterface::class), service(AuthorRegistry::class)]);
 
     // --- mcp --------------------------------------------------------------------------------------------------
     $tag = 'mattleads_agent_publishing.mcp_tool';
     $services->set(ListSectionsTool::class)->args([service(SectionRegistry::class)])->tag($tag, ['priority' => 100]);
     $services->set(StyleGuideTool::class)->args(['$styleGuide' => abstract_arg('from bundle config')])->tag($tag, ['priority' => 95]);
+    $services->set(ListAuthorsTool::class)->args([service(AuthorRegistry::class)])->tag($tag, ['priority' => 92]);
     $services->set(ListArticlesTool::class)->args([service(ArticleStorageInterface::class), service(ArticleNormalizer::class)])->tag($tag, ['priority' => 90]);
     $services->set(GetArticleTool::class)->args([service(ArticleStorageInterface::class), service(ArticleNormalizer::class)])->tag($tag, ['priority' => 85]);
     $services->set('mattleads_agent_publishing.mcp.lint_draft', LintTool::class)
@@ -212,7 +231,10 @@ return static function (ContainerConfigurator $container): void {
 
     // --- API --------------------------------------------------------------------------------------------------
     $services->set(ApiAccess::class)->args([service('security.token_storage')]);
-    $services->set(ArticleNormalizer::class)->args([service(ArticleWorkflow::class)]);
+    $services->set(ArticleNormalizer::class)->args([service(ArticleWorkflow::class), service(ArticleStorageInterface::class)]);
+    $services->set(AuthorController::class)
+        ->args([service(AuthorRegistry::class), service(ApiAccess::class)])
+        ->tag('controller.service_arguments')->public();
     $services->set(OpenApiController::class)
         ->args([param('mattleads_agent_publishing.api.prefix'), '$keyManagement' => abstract_arg('from bundle config')])
         ->tag('controller.service_arguments')->public();
@@ -264,6 +286,12 @@ return static function (ContainerConfigurator $container): void {
     // --- console ----------------------------------------------------------------------------------------------
     $services->set(CreateApiKeyCommand::class)
         ->args([service(ApiKeyManager::class), service(SectionRegistry::class)])
+        ->tag('console.command');
+    $services->set(ListApiKeysCommand::class)
+        ->args([service(ApiKeyStorageInterface::class)])
+        ->tag('console.command');
+    $services->set(RevokeApiKeyCommand::class)
+        ->args([service(ApiKeyManager::class), service(ApiKeyStorageInterface::class)])
         ->tag('console.command');
     $services->set(PublishScheduledCommand::class)
         ->args([service(ScheduledPublisher::class)])

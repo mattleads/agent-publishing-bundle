@@ -46,6 +46,7 @@ final class ArticleController
                 \is_string($state) ? ArticleState::from($state) : null,
                 $request->query->getInt('page', 1),
                 $request->query->getInt('per_page', 20),
+                \is_string($sort = $request->query->get('sort')) ? $sort : 'updated',
             );
         } catch (ValidationException $e) {
             return Problem::json(Response::HTTP_UNPROCESSABLE_ENTITY, 'Invalid query.', ['violations' => $e->violations]);
@@ -100,7 +101,7 @@ final class ArticleController
         if (null === $article) {
             return Problem::json(Response::HTTP_NOT_FOUND, 'Article not found.');
         }
-        if ($denied = $this->access->denyForArticle(Scope::ArticlesDraft, $article)) {
+        if ($denied = $this->access->denyForArticle(ArticleManager::isLive($article) && $this->articles->isEditable($article) ? Scope::ArticlesPublish : Scope::ArticlesDraft, $article)) {
             return $denied;
         }
         try {

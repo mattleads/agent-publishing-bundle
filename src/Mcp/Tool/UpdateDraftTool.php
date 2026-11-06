@@ -25,7 +25,7 @@ final class UpdateDraftTool extends AbstractTool
 
     public function description(): string
     {
-        return 'Change fields of a draft or an article in review. Only the fields you pass change. Published, scheduled and archived articles cannot be edited.';
+        return 'Change fields of a draft or an article in review. Only the fields you pass change. Published and scheduled articles can be edited only when the site allows it and the key has articles:publish; a slug change then keeps the old URL as a redirect. Archived articles cannot be edited.';
     }
 
     public function inputSchema(): array
@@ -45,6 +45,9 @@ final class UpdateDraftTool extends AbstractTool
     {
         $article = self::article($this->storage, (string) self::string($arguments, 'id', true), $key);
         unset($arguments['id']);
+        if (ArticleManager::isLive($article) && $this->articles->isEditable($article) && !$key->hasScope(Scope::ArticlesPublish)) {
+            throw new ToolException(\sprintf('Editing a %s article needs the "%s" scope.', $article->getState()->value, Scope::ArticlesPublish->value));
+        }
         try {
             $article = $this->articles->update($article, ArticleInput::fromArray($arguments, partial: true));
         } catch (ValidationException $e) {
