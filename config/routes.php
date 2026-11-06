@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
+use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
 use MattLeads\AgentPublishingBundle\Api\StatsController;
@@ -30,6 +31,10 @@ return static function (RoutingConfigurator $routes): void {
         ->controller([ArticleController::class, 'transition'])->methods(['POST'])
         ->requirements(['transition' => implode('|', ArticleWorkflow::transitions())]);
 
+    $routes->add('mattleads_agent_publishing_article_lint', $prefix . '/articles/{id}/lint')
+        ->controller([LintController::class, 'article'])->methods(['POST']);
+    $routes->add('mattleads_agent_publishing_lint', $prefix . '/lint')
+        ->controller([LintController::class, 'payload'])->methods(['POST']);
     $routes->add('mattleads_agent_publishing_article_stats', $prefix . '/articles/{id}/stats')
         ->controller([StatsController::class, 'article'])->methods(['GET']);
     $routes->add('mattleads_agent_publishing_stats_summary', $prefix . '/stats/summary')

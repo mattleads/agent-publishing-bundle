@@ -90,6 +90,8 @@ POST   /api/publisher/v1/articles/{id}/approve
 POST   /api/publisher/v1/articles/{id}/reject    { reason }
 POST   /api/publisher/v1/articles/{id}/publish   { publish_at? }
 POST   /api/publisher/v1/articles/{id}/archive
+POST   /api/publisher/v1/articles/{id}/lint
+POST   /api/publisher/v1/lint                     { same body as create; nothing is stored }
 GET    /api/publisher/v1/articles/{id}/stats?from=&to=
 GET    /api/publisher/v1/stats/summary?section=&from=&to=
 GET    /api/publisher/v1/stats/referrers?section=&from=&to=&limit=
@@ -117,6 +119,34 @@ mattleads_agent_publishing:
 ```
 
 The transition is recorded with actor `scheduler` in the `ArticleTransitioned` event.
+
+## Lint: let the agent fix the article before a human sees it
+
+`POST /articles/{id}/lint` checks a stored article, `POST /lint` checks a payload you have not created yet. Both return one entry per rule with `pass`, `warn` or `fail`, a message saying what was found and a hint saying how to fix it. An agent loops on the report until the status is `pass`, then submits.
+
+| Rule | Checks |
+|---|---|
+| `title_length` | 30-60 characters; fail above 70 |
+| `summary` | present, 70-160 characters, not a copy of the title (it is the meta description) |
+| `opening_paragraph` | the body starts with a 40-120 word paragraph that uses the title's terms, which is what answer engines quote |
+| `headings` | no H1 in the body, no skipped levels, at least two H2 above 500 words |
+| `word_count` | at least `min_words` for the section |
+| `readability` | Flesch reading ease for English, warns below 30 |
+| `images_alt` | every image has alt text |
+| `links` | descriptive link text, at least `min_internal_links` internal links |
+| `tags` | between 1 and 8 |
+| `slug` | unique in the section and locale, under 75 characters, shares a term with the title |
+| `faq` | a FAQ heading, only for sections with `require_faq: true` |
+
+Per-section expectations live in configuration:
+
+```yaml
+mattleads_agent_publishing:
+    sections:
+        docs: { path: /docs, lint: { require_faq: true, min_words: 500, min_internal_links: 2 } }
+```
+
+Add your own rule by implementing `LintRuleInterface` and tagging the service `mattleads_agent_publishing.lint_rule`.
 
 ## Analytics
 

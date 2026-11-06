@@ -11,6 +11,7 @@ final class Section
         public readonly string $name,
         public readonly string $path,
         public readonly array $locales,
+        public readonly LintSettings $lint = new LintSettings(),
     ) {}
 
     public function allowsLocale(string $locale): bool

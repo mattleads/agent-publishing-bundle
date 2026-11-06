@@ -9,6 +9,7 @@ use MattLeads\AgentPublishingBundle\Analytics\VisitClassifier;
 use MattLeads\AgentPublishingBundle\Api\ApiAccess;
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
 use MattLeads\AgentPublishingBundle\Api\ArticleNormalizer;
+use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
 use MattLeads\AgentPublishingBundle\Api\StatsController;
@@ -20,6 +21,19 @@ use MattLeads\AgentPublishingBundle\Command\PublishScheduledCommand;
 use MattLeads\AgentPublishingBundle\Contract\ApiKeyStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\StatsStorageInterface;
+use MattLeads\AgentPublishingBundle\Lint\Content\ContentInspector;
+use MattLeads\AgentPublishingBundle\Lint\Linter;
+use MattLeads\AgentPublishingBundle\Lint\Rule\FaqRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\HeadingsRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\ImagesAltRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\LinksRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\OpeningParagraphRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\ReadabilityRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\SlugRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\SummaryRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\TagsRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\TitleLengthRule;
+use MattLeads\AgentPublishingBundle\Lint\Rule\WordCountRule;
 use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyAuthenticator;
@@ -34,6 +48,7 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use function Symfony\Component\DependencyInjection\Loader\Configurator\abstract_arg;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services()
@@ -84,6 +99,21 @@ return static function (ContainerConfigurator $container): void {
             '$localeAttribute' => abstract_arg('from bundle config'),
         ]);
 
+    // --- lint -------------------------------------------------------------------------------------------------
+    $services->set(ContentInspector::class);
+    $priority = 100;
+    foreach ([TitleLengthRule::class, SummaryRule::class, OpeningParagraphRule::class, HeadingsRule::class, WordCountRule::class, ReadabilityRule::class, ImagesAltRule::class, TagsRule::class, FaqRule::class] as $rule) {
+        $services->set($rule)->tag('mattleads_agent_publishing.lint_rule', ['priority' => $priority--]);
+    }
+    $services->set(LinksRule::class)
+        ->args(['$siteHost' => abstract_arg('from bundle config')])
+        ->tag('mattleads_agent_publishing.lint_rule', ['priority' => 50]);
+    $services->set(SlugRule::class)
+        ->args([service(ArticleStorageInterface::class)])
+        ->tag('mattleads_agent_publishing.lint_rule', ['priority' => 40]);
+    $services->set(Linter::class)
+        ->args([tagged_iterator('mattleads_agent_publishing.lint_rule')]);
+
     // --- security ---------------------------------------------------------------------------------------------
     $services->set(ApiKeyManager::class)
         ->args([service(ApiKeyStorageInterface::class), param('kernel.secret'), service('clock')->nullOnInvalid()]);
@@ -109,6 +139,15 @@ return static function (ContainerConfigurator $container): void {
         ])
         ->tag('controller.service_arguments')->public();
 
+    $services->set(LintController::class)
+        ->args([
+            service(Linter::class),
+            service(ContentInspector::class),
+            service(ArticleStorageInterface::class),
+            service(SectionRegistry::class),
+            service(ApiAccess::class),
+        ])
+        ->tag('controller.service_arguments')->public();
     $services->set(StatsController::class)
         ->args([
             service(StatsStorageInterface::class),

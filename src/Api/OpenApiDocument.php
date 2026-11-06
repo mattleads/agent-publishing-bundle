@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MattLeads\AgentPublishingBundle\Api;
 
 use MattLeads\AgentPublishingBundle\Analytics\VisitKind;
+use MattLeads\AgentPublishingBundle\Lint\LintLevel;
 use MattLeads\AgentPublishingBundle\Model\ArticleFilter;
 use MattLeads\AgentPublishingBundle\Model\ArticleInput;
 use MattLeads\AgentPublishingBundle\Model\ArticleState;
@@ -131,6 +132,36 @@ final class OpenApiDocument
             $paths[$prefix . '/articles/{id}/' . $name] = ['post' => $operation];
         }
 
+        $lintReport = ['$ref' => '#/components/schemas/LintReport'];
+        $paths[$prefix . '/articles/{id}/lint'] = [
+            'post' => [
+                'operationId' => 'lintArticle',
+                'summary' => 'Check a stored article against the SEO and answer-engine rules',
+                'description' => 'Read-only. Returns one check per rule with pass, warn or fail. Fix the fails and warns, then submit.',
+                'tags' => ['lint'],
+                'x-scope' => Scope::ArticlesRead->value,
+                'parameters' => [$id],
+                'responses' => $errors([
+                    '200' => $json($lintReport, 'The report.'),
+                    '404' => $json($problem, 'Unknown id.'),
+                ]),
+            ],
+        ];
+        $paths[$prefix . '/lint'] = [
+            'post' => [
+                'operationId' => 'lintPayload',
+                'summary' => 'Check an article before creating it',
+                'description' => 'Same rules as lintArticle, applied to a body you have not saved yet. Nothing is stored.',
+                'tags' => ['lint'],
+                'x-scope' => Scope::ArticlesRead->value,
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ArticleCreate']]]],
+                'responses' => $errors([
+                    '200' => $json($lintReport, 'The report.'),
+                    '422' => $json($problem, 'Validation failed. See "violations".'),
+                ]),
+            ],
+        ];
+
         $period = [
             ['name' => 'from', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'First day, inclusive. Defaults to 29 days before "to".'],
             ['name' => 'to', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'Last day, inclusive. Defaults to today in the analytics timezone.'],
@@ -196,7 +227,7 @@ final class OpenApiDocument
             ],
             'security' => [['apiKey' => []]],
             'tags' => [
-                ['name' => 'sections'], ['name' => 'articles'], ['name' => 'workflow'], ['name' => 'stats'],
+                ['name' => 'sections'], ['name' => 'articles'], ['name' => 'workflow'], ['name' => 'lint'], ['name' => 'stats'],
             ],
             'paths' => $paths,
             'components' => [
@@ -258,6 +289,26 @@ final class OpenApiDocument
                             'updated_at' => ['type' => 'string', 'format' => 'date-time'],
                             'published_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
                             'publish_at' => ['type' => ['string', 'null'], 'format' => 'date-time', 'description' => 'Set while the state is "scheduled".'],
+                        ],
+                    ],
+                    'LintCheck' => [
+                        'type' => 'object',
+                        'required' => ['rule', 'level', 'message'],
+                        'properties' => [
+                            'rule' => ['type' => 'string'],
+                            'level' => ['type' => 'string', 'enum' => array_map(static fn(LintLevel $l) => $l->value, LintLevel::cases())],
+                            'message' => ['type' => 'string', 'description' => 'What was found.'],
+                            'hint' => ['type' => 'string', 'description' => 'How to fix it. Present on warn and fail.'],
+                        ],
+                    ],
+                    'LintReport' => [
+                        'type' => 'object',
+                        'required' => ['status', 'summary', 'checks'],
+                        'properties' => [
+                            'article_id' => ['type' => 'string', 'description' => 'Present when a stored article was checked.'],
+                            'status' => ['type' => 'string', 'enum' => ['pass', 'warn', 'fail'], 'description' => 'The worst level among the checks.'],
+                            'summary' => ['type' => 'object', 'required' => ['pass', 'warn', 'fail'], 'properties' => ['pass' => ['type' => 'integer'], 'warn' => ['type' => 'integer'], 'fail' => ['type' => 'integer']]],
+                            'checks' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/LintCheck']],
                         ],
                     ],
                     'Referrer' => [

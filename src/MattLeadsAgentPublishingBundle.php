@@ -16,6 +16,7 @@ use MattLeads\AgentPublishingBundle\Contract\ApiKeyStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\StatsStorageInterface;
 use MattLeads\AgentPublishingBundle\DependencyInjection\Configuration;
+use MattLeads\AgentPublishingBundle\Lint\Rule\LinksRule;
 use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryApiKeyStorage;
@@ -63,13 +64,15 @@ final class MattLeadsAgentPublishingBundle extends AbstractBundle
     {
         $container->import('../config/services.php');
 
-        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, stats_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>}>, api: array{prefix: string}, analytics: array{enabled: bool, timezone: string, site_host: ?string, slug_attribute: string, locale_attribute: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}} $config */
+        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, stats_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>, lint: array{require_faq: bool, min_words: int, min_internal_links: int}}>, api: array{prefix: string}, analytics: array{enabled: bool, timezone: string, site_host: ?string, slug_attribute: string, locale_attribute: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}} $config */
         $builder->setParameter('mattleads_agent_publishing.api.prefix', rtrim($config['api']['prefix'], '/'));
 
         $builder->getDefinition(SectionRegistry::class)
             ->setArgument('$sections', $config['sections'])
             ->setArgument('$locales', $config['locales'])
             ->setArgument('$defaultLocale', $config['default_locale']);
+
+        $builder->getDefinition(LinksRule::class)->setArgument('$siteHost', $config['analytics']['site_host']);
 
         // --- analytics --------------------------------------------------------------------------------------------
         $builder->getDefinition('mattleads_agent_publishing.analytics.timezone')->setArgument(0, $config['analytics']['timezone']);
