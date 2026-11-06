@@ -1,6 +1,6 @@
-# PublisherBundle, design (draft 1, 6 Nov 2026)
+# AgentPublishingBundle, design (draft 2, 6 Nov 2026)
 
-Working name: `mattleads/publisher-bundle`, namespace `MattLeads\PublisherBundle`. Alternatives if the name feels too generic: `agent-publishing-bundle`, `headless-blog-bundle` (both free on Packagist on 6 Nov 2026). `content-api-bundle` and `publisher-bundle` have namesakes under other vendors, so the vendor prefix carries the identity either way.
+Name: `mattleads/agent-publishing-bundle`, namespace `MattLeads\AgentPublishingBundle`, config key `mattleads_agent_publishing` (decided 6 Nov 2026; the name was free on Packagist).
 
 ## One line
 
@@ -13,11 +13,9 @@ Add the bundle to any Symfony site and it exposes an API and an MCP server throu
 | Who owns article storage | Both. A bundled Doctrine storage for new sites, and an adapter contract for sites with their own entities. Chosen in YAML. |
 | First consumers | Marketcells and well365.io, both as API/MCP clients. |
 | Sites per install | One site per install, with multiple sections and multiple languages. |
-| Analytics scope | View counts and referrer counts only, plus inbound counts per referrer. No raw event storage, no cookies. |
+| Analytics scope | View counts and inbound counts per referrer. No revenue attribution, no raw event storage, no cookies. |
 | Approval | Through the API. The bundle ships no admin UI. |
 | Frontend | None in this version. Templates, forms and Stimulus controllers are out of scope. |
-
-Assumption to confirm: "income counts (from referrers)" is read as inbound visit counts per referrer. If it means revenue attribution per referrer, that becomes a `conversion` endpoint the host app calls, and a `revenue` column on the referrer rollup. Both fit the same model, the second needs one more endpoint.
 
 ## Who uses it
 
@@ -29,7 +27,7 @@ Assumption to confirm: "income counts (from referrers)" is read as inbound visit
 
 ```
 Host Symfony app
-├── PublisherBundle
+├── AgentPublishingBundle
 │   ├── Contract/            ArticleStorageInterface, ArticleInterface, SectionResolverInterface
 │   ├── Storage/Doctrine/    default entities (Article, ArticleTranslation, ApiKey, DailyStat, ReferrerStat)
 │   ├── Api/                 REST controllers, OpenAPI document, request/response DTOs
@@ -44,8 +42,8 @@ Host Symfony app
 ### Storage modes
 
 ```yaml
-# config/packages/publisher.yaml
-publisher:
+# config/packages/mattleads_agent_publishing.yaml
+mattleads_agent_publishing:
     storage: doctrine            # or: custom
     custom_storage: App\Publisher\ArticleStorage   # when storage: custom
     locales: [en, de, ru]
@@ -163,9 +161,13 @@ Same bar as the other two bundles: PHPUnit with a kernel test app under `tests/A
 - Recognition: two external products (Marketcells, well365.io) integrating it, which can be shown as adoption outside the author's own demo.
 - Contribution: MCP integration gives a reason to file issues or PRs against symfony/mcp-bundle while it is in beta.
 
+## Decided after draft 1
+
+- Body format: Markdown by default, `format: html` accepted.
+- Default key scopes: `articles:read` and `articles:draft`. Publishing rights are granted explicitly.
+- States: `draft`, `in_review`, `scheduled`, `published`, `archived`. A future `publish_at` moves to `scheduled`.
+- Workflow implemented in the bundle (`ArticleWorkflow`) with an `ArticleTransitioned` event rather than `symfony/workflow`, to keep the dependency list short. Can be revisited.
+
 ## Open questions
 
-1. Confirm the reading of "income counts".
-2. Markdown or HTML as the canonical body format? Markdown proposed.
-3. Should `publish` for agents be allowed at all by default, or only `submit`? Proposed default: keys get `articles:draft` unless the webmaster adds more.
-4. Marketcells disclosure: when the bundle is public and Marketcells is listed as an integrator, the relationship should be stated in the README.
+1. Marketcells disclosure: when the bundle is public and Marketcells is listed as an integrator, the relationship should be stated in the README.
