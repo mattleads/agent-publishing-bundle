@@ -57,10 +57,15 @@ final class AuthorizationTest extends TestCase
         self::assertSame(2, $this->json($client)['total']);
 
         // Objects in other sections look non-existent.
-        foreach (['GET' => "/articles/$docsId", 'PATCH' => "/articles/$docsId", 'POST' => "/articles/$docsId/submit", 'LINT' => "/articles/$docsId/lint", 'STATS' => "/articles/$docsId/stats"] as $method => $path) {
-            $this->api($client, match ($method) {
-                'LINT' => 'POST', 'STATS' => 'GET', default => $method
-            }, $path, $blogOnly, 'PATCH' === $method ? ['title' => 'x'] : null);
+        $probes = [
+            ['GET', "/articles/$docsId", null],
+            ['PATCH', "/articles/$docsId", ['title' => 'x']],
+            ['POST', "/articles/$docsId/submit", null],
+            ['POST', "/articles/$docsId/lint", null],
+            ['GET', "/articles/$docsId/stats", null],
+        ];
+        foreach ($probes as [$method, $path, $body]) {
+            $this->api($client, $method, $path, $blogOnly, $body);
             self::assertSame(Response::HTTP_NOT_FOUND, $client->getResponse()->getStatusCode(), "$method $path");
         }
         $this->api($client, 'GET', "/articles/$blogId", $blogOnly);
