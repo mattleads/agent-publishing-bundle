@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MattLeads\AgentPublishingBundle\Api;
 
+use MattLeads\AgentPublishingBundle\Analytics\StatsPeriod;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\StatsStorageInterface;
 use MattLeads\AgentPublishingBundle\Model\Scope;
@@ -16,8 +17,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class StatsController
 {
-    public const DEFAULT_DAYS = 30;
-    public const MAX_DAYS = 366;
     public const MAX_REFERRERS = 200;
 
     public function __construct(
@@ -119,31 +118,9 @@ final class StatsController
      */
     private function period(Request $request): array
     {
-        $today = ($this->clock?->now() ?? new \DateTimeImmutable())->setTimezone($this->timezone)->setTime(0, 0);
-        $to = $this->day($request, 'to') ?? $today;
-        $from = $this->day($request, 'from') ?? $to->modify(\sprintf('-%d days', self::DEFAULT_DAYS - 1));
-        if ($from > $to) {
-            throw new ValidationException(['"from" must not be after "to".']);
-        }
-        if ($from->diff($to)->days >= self::MAX_DAYS) {
-            throw new ValidationException([\sprintf('The period must not exceed %d days.', self::MAX_DAYS)]);
-        }
+        $period = StatsPeriod::parse($request->query->getString('from'), $request->query->getString('to'), $this->timezone, $this->clock?->now() ?? new \DateTimeImmutable());
 
-        return [$from, $to];
-    }
-
-    /** @throws ValidationException */
-    private function day(Request $request, string $name): ?\DateTimeImmutable
-    {
-        $value = $request->query->get($name);
-        if (null === $value || '' === $value) {
-            return null;
-        }
-        if (!\is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) || false === $day = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, $this->timezone)) {
-            throw new ValidationException([\sprintf('"%s" must be a date formatted YYYY-MM-DD.', $name)]);
-        }
-
-        return $day;
+        return [$period->from, $period->to];
     }
 
     private function invalid(ValidationException $e): JsonResponse

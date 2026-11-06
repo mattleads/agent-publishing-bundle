@@ -36,6 +36,17 @@ use MattLeads\AgentPublishingBundle\Lint\Rule\SummaryRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\TagsRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\TitleLengthRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\WordCountRule;
+use MattLeads\AgentPublishingBundle\Mcp\McpController;
+use MattLeads\AgentPublishingBundle\Mcp\McpServer;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\CreateDraftTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\GetArticleTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\LintTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\ListArticlesTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\ListSectionsTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\StatsTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\StyleGuideTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\TransitionTool;
+use MattLeads\AgentPublishingBundle\Mcp\Tool\UpdateDraftTool;
 use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Seo\JsonLdBuilder;
@@ -163,6 +174,35 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments')->public();
     $services->set(JsonLdExtension::class)
         ->args([service(JsonLdBuilder::class), service(UrlResolverInterface::class)]);
+
+    // --- mcp --------------------------------------------------------------------------------------------------
+    $tag = 'mattleads_agent_publishing.mcp_tool';
+    $services->set(ListSectionsTool::class)->args([service(SectionRegistry::class)])->tag($tag, ['priority' => 100]);
+    $services->set(StyleGuideTool::class)->args(['$styleGuide' => abstract_arg('from bundle config')])->tag($tag, ['priority' => 95]);
+    $services->set(ListArticlesTool::class)->args([service(ArticleStorageInterface::class), service(ArticleNormalizer::class)])->tag($tag, ['priority' => 90]);
+    $services->set(GetArticleTool::class)->args([service(ArticleStorageInterface::class), service(ArticleNormalizer::class)])->tag($tag, ['priority' => 85]);
+    $services->set('mattleads_agent_publishing.mcp.lint_draft', LintTool::class)
+        ->args([false, service(Linter::class), service(ContentInspector::class), service(ArticleStorageInterface::class), service(SectionRegistry::class)])->tag($tag, ['priority' => 80]);
+    $services->set('mattleads_agent_publishing.mcp.lint_article', LintTool::class)
+        ->args([true, service(Linter::class), service(ContentInspector::class), service(ArticleStorageInterface::class), service(SectionRegistry::class)])->tag($tag, ['priority' => 75]);
+    $services->set(CreateDraftTool::class)->args([service(ArticleManager::class), service(ArticleNormalizer::class)])->tag($tag, ['priority' => 70]);
+    $services->set(UpdateDraftTool::class)->args([service(ArticleStorageInterface::class), service(ArticleManager::class), service(ArticleNormalizer::class)])->tag($tag, ['priority' => 65]);
+    $priority = 60;
+    foreach (['submit', 'approve', 'reject', 'publish', 'archive'] as $transition) {
+        $services->set('mattleads_agent_publishing.mcp.' . $transition, TransitionTool::class)
+            ->args([$transition, service(ArticleStorageInterface::class), service(ArticleWorkflow::class), service(ArticleNormalizer::class)])
+            ->tag($tag, ['priority' => $priority--]);
+    }
+    foreach (StatsTool::KINDS as $kind) {
+        $services->set('mattleads_agent_publishing.mcp.stats_' . $kind, StatsTool::class)
+            ->args([$kind, service(StatsStorageInterface::class), service(ArticleStorageInterface::class), service(SectionRegistry::class), service('mattleads_agent_publishing.analytics.timezone'), service('clock')->nullOnInvalid()])
+            ->tag($tag, ['priority' => $priority--]);
+    }
+    $services->set(McpServer::class)
+        ->args([tagged_iterator($tag), '$instructions' => abstract_arg('from bundle config')]);
+    $services->set(McpController::class)
+        ->args([service(McpServer::class), service(ApiAccess::class), '$enabled' => abstract_arg('from bundle config')])
+        ->tag('controller.service_arguments')->public();
 
     // --- security ---------------------------------------------------------------------------------------------
     $services->set(ApiKeyManager::class)

@@ -141,6 +141,31 @@ mattleads_agent_publishing:
 
 The transition is recorded with actor `scheduler` in the `ArticleTransitioned` event.
 
+## MCP: the same operations as tools for agents
+
+`POST /api/publisher/v1/mcp` is a Model Context Protocol endpoint, tools only, JSON-RPC 2.0 over HTTP (Streamable HTTP transport), with no protocol dependency in the bundle. Agents authenticate with the same bearer keys and see only the tools their scopes allow. Point Claude Code at it:
+
+```bash
+claude mcp add --transport http publisher https://example.com/api/publisher/v1/mcp --header "Authorization: Bearer apb_..."
+```
+
+Tools: `list_sections`, `get_style_guide`, `list_articles`, `get_article`, `lint_draft`, `lint_article`, `create_draft`, `update_draft`, `submit_article`, `approve_article`, `reject_article`, `publish_article`, `archive_article`, `get_article_stats`, `get_stats_summary`, `get_top_referrers`. Key management stays REST-only.
+
+```yaml
+mattleads_agent_publishing:
+    mcp:
+        enabled: true
+        path: /mcp                                   # appended to api.prefix
+        instructions: >
+            This is the engineering blog of Example Ltd. Draft in the "blog" section, lint until the
+            report passes, then submit. A human approves. Never publish directly.
+        style_guide: |
+            Voice: senior engineer briefing a peer. Lead with the answer. Name exact versions.
+            Avoid: "game-changer", "in today's fast-paced world", emoji.
+```
+
+`instructions` is sent to the agent at `initialize`; `style_guide` is what `get_style_guide` returns. Add your own tool by implementing `McpToolInterface` and tagging the service `mattleads_agent_publishing.mcp_tool`.
+
 ## Lint: let the agent fix the article before a human sees it
 
 `POST /articles/{id}/lint` checks a stored article, `POST /lint` checks a payload you have not created yet. Both return one entry per rule with `pass`, `warn` or `fail`, a message saying what was found and a hint saying how to fix it. An agent loops on the report until the status is `pass`, then submits.

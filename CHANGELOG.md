@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- MCP endpoint at `{prefix}/mcp`: a dependency-free, tools-only Model Context Protocol server (JSON-RPC 2.0 over HTTP) exposing sections, style guide, articles, lint, workflow transitions and stats as tools, filtered by key scope. Configurable under `mcp`; extensible via the `mattleads_agent_publishing.mcp_tool` tag.
 - Key management over the API: `GET/POST /keys`, `GET/DELETE /keys/{id}` under `keys:manage`. A key can only grant a subset of its own scopes and sections; restricted keys only see keys inside their sections.
 - `api.key_management: false` switches the `/keys` endpoints off (404, absent from OpenAPI) so keys are issued only from the console.
 - Key expiry: `expires_at` on keys, `--expires` on the console command; expired keys are refused like revoked ones. Doctrine users need a migration adding `expires_at` to `agent_publishing_api_key`.
