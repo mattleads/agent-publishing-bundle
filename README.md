@@ -4,7 +4,7 @@
 
 A publishing API for Symfony sites. Install it and AI agents, marketing platforms and your own scripts can draft, submit, approve and publish articles through scoped API keys, in the sections and languages you declare in YAML. No frontend ships with this bundle: approval happens through the API, and your site keeps rendering articles the way it already does.
 
-Status: 0.1, usable. [DESIGN.md](DESIGN.md) has the plan for what comes next (key management over the API, MCP server).
+Status: 0.2, usable. REST, MCP, analytics, lint and SEO output are in; see [DESIGN.md](DESIGN.md) for the original plan.
 
 ## Requirements
 

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-06
+
+### Upgrade note
+- Doctrine users: add the nullable `expires_at` datetime column to `agent_publishing_api_key` (`doctrine:migrations:diff` generates it). Nothing else changed in the schema.
+
 ### Added
 - MCP endpoint at `{prefix}/mcp`: a dependency-free, tools-only Model Context Protocol server (JSON-RPC 2.0 over HTTP) exposing sections, style guide, articles, lint, workflow transitions and stats as tools, filtered by key scope. Configurable under `mcp`; extensible via the `mattleads_agent_publishing.mcp_tool` tag.
 - Key management over the API: `GET/POST /keys`, `GET/DELETE /keys/{id}` under `keys:manage`. A key can only grant a subset of its own scopes and sections; restricted keys only see keys inside their sections.
@@ -34,6 +39,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Analytics: daily view and referrer rollups, visit classification (direct, internal, referral, search, social, ai_referral, ai_crawler, bot), a terminate-time listener keyed off the `_agent_publishing_section` route default, optional Messenger dispatch, and three `stats:read` endpoints.
 - Scheduled publishing: `agent-publishing:publish-scheduled` command for cron, or an optional Symfony Scheduler task (`scheduler.enabled`).
 
-[Unreleased]: https://github.com/mattleads/agent-publishing-bundle/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/mattleads/agent-publishing-bundle/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mattleads/agent-publishing-bundle/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/mattleads/agent-publishing-bundle/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mattleads/agent-publishing-bundle/releases/tag/v0.1.0
