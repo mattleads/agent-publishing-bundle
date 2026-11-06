@@ -14,12 +14,14 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+
 final class TestKernel extends Kernel
 {
     use MicroKernelTrait;
 
     /** @param array<string, mixed> $bundleConfig */
-    public function __construct(private readonly array $bundleConfig = [])
+    public function __construct(private readonly array $bundleConfig = [], private readonly bool $refusePublishing = false)
     {
         parent::__construct('test', true);
     }
@@ -70,6 +72,11 @@ final class TestKernel extends Kernel
             ],
         ]);
         $container->services()->set(BlogController::class)->tag('controller.service_arguments')->public();
+        if ($this->refusePublishing) {
+            $container->services()->set(RefusingArticleStorage::class)
+                ->decorate(\MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface::class)
+                ->args([service('.inner')]);
+        }
         $container->extension('mattleads_agent_publishing', $this->bundleConfig + [
             'storage' => 'memory',
             'locales' => ['en', 'de'],
@@ -97,7 +104,7 @@ final class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return self::baseDir() . '/' . md5(serialize($this->bundleConfig)) . '/cache';
+        return self::baseDir() . '/' . md5(serialize([$this->bundleConfig, $this->refusePublishing])) . '/cache';
     }
 
     public function getLogDir(): string

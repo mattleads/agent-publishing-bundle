@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-06
+
+### Fixed
+- A `ValidationException` thrown by the article storage (or a host decorator of it) during a transition is answered with 422 and its violations on REST, and as a tool error on MCP, instead of a 500. The article keeps its state.
+
 ## [0.3.0] - 2026-11-06
 
 ### Upgrade note

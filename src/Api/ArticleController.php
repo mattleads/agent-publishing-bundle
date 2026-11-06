@@ -150,6 +150,9 @@ final class ArticleController
             $article = $this->workflow->apply($article, $transition, $note, $publishAt, $this->access->key()?->getName());
         } catch (InvalidTransitionException $e) {
             return Problem::json(Response::HTTP_CONFLICT, $e->getMessage());
+        } catch (ValidationException $e) {
+            // A storage (or a decorator of it) refused the article, e.g. an image it could not fetch.
+            return $this->invalid($e);
         }
 
         return new JsonResponse($this->normalizer->normalize($article));

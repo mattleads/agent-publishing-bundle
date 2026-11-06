@@ -43,5 +43,6 @@ interface ArticleStorageInterface
     public function update(ArticleInterface $article, ArticleInput $input, ?string $slug, \DateTimeImmutable $now): ArticleInterface;
 
     /** $publishAt is set for the "scheduled" state only. $note is the reject reason, or null. */
+    /** May throw ValidationException to refuse the change; the API answers 422 and the state stays as it was. */
     public function transition(ArticleInterface $article, ArticleState $to, \DateTimeImmutable $now, ?string $note = null, ?\DateTimeImmutable $publishAt = null): ArticleInterface;
 }
