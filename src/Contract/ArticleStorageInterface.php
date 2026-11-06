@@ -24,6 +24,8 @@ interface ArticleStorageInterface
 
     public function slugExists(string $section, string $locale, string $slug, ?string $exceptId = null): bool;
 
+    public function findBySlug(string $section, string $locale, string $slug): ?ArticleInterface;
+
     /** $input->section, locale, title and body are guaranteed non-null. */
     public function create(ArticleInput $input, string $slug, ?string $createdBy, \DateTimeImmutable $now): ArticleInterface;
 

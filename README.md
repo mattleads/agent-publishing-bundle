@@ -54,7 +54,7 @@ security:
 
 The entry point answers requests without a key with a JSON 401. Each scope also maps to a role (`articles:draft` to `ROLE_AGENT_PUBLISHING_ARTICLES_DRAFT`) if you prefer `access_control` rules per path.
 
-With `storage: doctrine`, run a migration: the bundle maps `agent_publishing_article` and `agent_publishing_api_key`.
+With `storage: doctrine`, run a migration: the bundle maps `agent_publishing_article`, `agent_publishing_api_key`, `agent_publishing_view_stat` and `agent_publishing_referrer_stat`.
 
 ## Issue a key
 
@@ -70,7 +70,7 @@ The secret is printed once. Scopes:
 | `articles:draft` | create and update drafts, submit for review |
 | `articles:approve` | approve or reject articles in review |
 | `articles:publish` | publish directly or on a schedule, archive |
-| `stats:read` | counts and referrers (planned) |
+| `stats:read` | view counts and referrers |
 | `keys:manage` | issue and revoke keys (planned) |
 
 A key with no `--section` can write to every section.
@@ -90,6 +90,9 @@ POST   /api/publisher/v1/articles/{id}/approve
 POST   /api/publisher/v1/articles/{id}/reject    { reason }
 POST   /api/publisher/v1/articles/{id}/publish   { publish_at? }
 POST   /api/publisher/v1/articles/{id}/archive
+GET    /api/publisher/v1/articles/{id}/stats?from=&to=
+GET    /api/publisher/v1/stats/summary?section=&from=&to=
+GET    /api/publisher/v1/stats/referrers?section=&from=&to=&limit=
 ```
 
 Send the key as `Authorization: Bearer apb_...`. Errors are JSON with `error` and, for validation, `violations`.
@@ -115,6 +118,58 @@ mattleads_agent_publishing:
 
 The transition is recorded with actor `scheduler` in the `ArticleTransitioned` event.
 
+## Analytics
+
+The bundle counts views per article and per referrer, by day. It stores counts only: no cookies, no IP addresses, no user agents, no raw URLs. Each view is bucketed into a kind:
+
+| Kind | Meaning |
+|---|---|
+| `direct` | no referrer |
+| `internal` | a link from your own site |
+| `search` | Google, Bing, DuckDuckGo and other engines |
+| `social` | X, LinkedIn, Reddit, Hacker News, Telegram and friends |
+| `ai_referral` | a human sent by ChatGPT, Perplexity, Claude, Gemini or another assistant |
+| `ai_crawler` | GPTBot, ClaudeBot, PerplexityBot, Google-Extended and other AI crawlers |
+| `bot` | everything else that is not a browser |
+| `referral` | any other site |
+
+`views` counts human kinds. `crawler_views` counts `ai_crawler` and `bot`, so you can see which articles AI systems read without inflating the human numbers.
+
+### Tell the bundle which page is an article
+
+Add a route default to the route that renders an article. The listener runs after the response is sent, finds the published article by section, locale and slug, and counts the view:
+
+```php
+#[Route('/blog/{slug}', name: 'blog_show', defaults: ['_agent_publishing_section' => 'blog'])]
+```
+
+The slug comes from the `slug` attribute and the locale from `_locale`, falling back to `default_locale`. Both names are configurable under `analytics`. If your URLs do not carry a slug, call the recorder yourself:
+
+```php
+public function __construct(private ViewRecorder $views) {}
+
+$this->views->record($article, $request);
+```
+
+With `symfony/messenger` installed, each view is dispatched as an `ArticleViewed` message and counted by its handler. Route it to an async transport to keep writes off the request:
+
+```yaml
+framework:
+    messenger:
+        routing:
+            MattLeads\AgentPublishingBundle\Analytics\ArticleViewed: async
+```
+
+Without Messenger, the view is counted synchronously after the response has been sent.
+
+```yaml
+mattleads_agent_publishing:
+    analytics:
+        enabled: true
+        timezone: Europe/London     # defines a "day"
+        site_host: example.com      # links from here count as internal; defaults to the request host
+```
+
 ## Bring your own storage
 
 ```yaml
@@ -122,6 +177,7 @@ mattleads_agent_publishing:
     storage: custom
     article_storage: App\Publishing\ArticleStorage     # implements ArticleStorageInterface
     api_key_storage: App\Publishing\ApiKeyStorage      # implements ApiKeyStorageInterface
+    stats_storage: App\Publishing\StatsStorage         # implements StatsStorageInterface
 ```
 
 Your `ArticleStorageInterface` returns objects implementing `ArticleInterface`, which is read-only. All mutation goes through the storage, so the bundle never touches your entities directly.

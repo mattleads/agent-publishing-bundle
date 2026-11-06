@@ -69,6 +69,7 @@ final class TestKernel extends Kernel
                 ['path' => '^/api/', 'roles' => 'ROLE_AGENT_PUBLISHING'],
             ],
         ]);
+        $container->services()->set(BlogController::class)->tag('controller.service_arguments')->public();
         $container->extension('mattleads_agent_publishing', $this->bundleConfig + [
             'storage' => 'memory',
             'locales' => ['en', 'de'],
@@ -83,6 +84,10 @@ final class TestKernel extends Kernel
     protected function configureRoutes(RoutingConfigurator $routes): void
     {
         $routes->import(\dirname(__DIR__, 2) . '/config/routes.php');
+        $routes->add('blog_show', '/blog/{slug}')
+            ->controller([BlogController::class, 'show'])
+            ->defaults(['_agent_publishing_section' => 'blog', '_locale' => 'en'])
+            ->methods(['GET']);
     }
 
     public function getProjectDir(): string

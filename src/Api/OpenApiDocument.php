@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MattLeads\AgentPublishingBundle\Api;
 
+use MattLeads\AgentPublishingBundle\Analytics\VisitKind;
 use MattLeads\AgentPublishingBundle\Model\ArticleFilter;
 use MattLeads\AgentPublishingBundle\Model\ArticleInput;
 use MattLeads\AgentPublishingBundle\Model\ArticleState;
@@ -130,6 +131,52 @@ final class OpenApiDocument
             $paths[$prefix . '/articles/{id}/' . $name] = ['post' => $operation];
         }
 
+        $period = [
+            ['name' => 'from', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'First day, inclusive. Defaults to 29 days before "to".'],
+            ['name' => 'to', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'Last day, inclusive. Defaults to today in the analytics timezone.'],
+        ];
+        $sectionParam = ['name' => 'section', 'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Limit to one section.'];
+        $paths[$prefix . '/articles/{id}/stats'] = [
+            'get' => [
+                'operationId' => 'getArticleStats',
+                'summary' => 'Views per day and referrers of one article',
+                'tags' => ['stats'],
+                'x-scope' => Scope::StatsRead->value,
+                'parameters' => [$id, ...$period],
+                'responses' => $errors([
+                    '200' => $json(['$ref' => '#/components/schemas/ArticleStats'], 'Counts for the period.'),
+                    '404' => $json($problem, 'Unknown id.'),
+                    '422' => $json($problem, 'Invalid period.'),
+                ]),
+            ],
+        ];
+        $paths[$prefix . '/stats/summary'] = [
+            'get' => [
+                'operationId' => 'getStatsSummary',
+                'summary' => 'Site or section totals by visit kind',
+                'tags' => ['stats'],
+                'x-scope' => Scope::StatsRead->value,
+                'parameters' => [$sectionParam, ...$period],
+                'responses' => $errors([
+                    '200' => $json(['$ref' => '#/components/schemas/StatsSummary'], 'Totals for the period.'),
+                    '422' => $json($problem, 'Invalid query.'),
+                ]),
+            ],
+        ];
+        $paths[$prefix . '/stats/referrers'] = [
+            'get' => [
+                'operationId' => 'getStatsReferrers',
+                'summary' => 'Inbound counts per referrer host',
+                'tags' => ['stats'],
+                'x-scope' => Scope::StatsRead->value,
+                'parameters' => [$sectionParam, ...$period, ['name' => 'limit', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200, 'default' => 50]]],
+                'responses' => $errors([
+                    '200' => $json(['$ref' => '#/components/schemas/ReferrerList'], 'Referrers, most views first.'),
+                    '422' => $json($problem, 'Invalid query.'),
+                ]),
+            ],
+        ];
+
         $writable = [
             'title' => ['type' => 'string', 'maxLength' => 200],
             'slug' => ['type' => 'string', 'maxLength' => 200, 'pattern' => '^[a-z0-9]+(?:-[a-z0-9]+)*$', 'description' => 'Derived from the title when omitted. Unique per section and locale.'],
@@ -149,7 +196,7 @@ final class OpenApiDocument
             ],
             'security' => [['apiKey' => []]],
             'tags' => [
-                ['name' => 'sections'], ['name' => 'articles'], ['name' => 'workflow'],
+                ['name' => 'sections'], ['name' => 'articles'], ['name' => 'workflow'], ['name' => 'stats'],
             ],
             'paths' => $paths,
             'components' => [
@@ -211,6 +258,51 @@ final class OpenApiDocument
                             'updated_at' => ['type' => 'string', 'format' => 'date-time'],
                             'published_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
                             'publish_at' => ['type' => ['string', 'null'], 'format' => 'date-time', 'description' => 'Set while the state is "scheduled".'],
+                        ],
+                    ],
+                    'Referrer' => [
+                        'type' => 'object',
+                        'required' => ['host', 'kind', 'views'],
+                        'properties' => [
+                            'host' => ['type' => 'string', 'description' => 'Normalized referrer host. Empty for direct and crawler views.'],
+                            'kind' => ['type' => 'string', 'enum' => VisitKind::values()],
+                            'views' => ['type' => 'integer'],
+                        ],
+                    ],
+                    'StatsSummary' => [
+                        'type' => 'object',
+                        'required' => ['from', 'to', 'views', 'crawler_views', 'by_kind'],
+                        'properties' => [
+                            'section' => ['type' => ['string', 'null']],
+                            'from' => ['type' => 'string', 'format' => 'date'],
+                            'to' => ['type' => 'string', 'format' => 'date'],
+                            'views' => ['type' => 'integer', 'description' => 'Human views.'],
+                            'crawler_views' => ['type' => 'integer', 'description' => 'Views by AI crawlers and other bots.'],
+                            'by_kind' => ['type' => 'object', 'additionalProperties' => ['type' => 'integer'], 'description' => 'Views per visit kind.'],
+                        ],
+                    ],
+                    'ArticleStats' => [
+                        'type' => 'object',
+                        'required' => ['article_id', 'from', 'to', 'views', 'crawler_views', 'by_kind', 'per_day', 'referrers'],
+                        'properties' => [
+                            'article_id' => ['type' => 'string'],
+                            'from' => ['type' => 'string', 'format' => 'date'],
+                            'to' => ['type' => 'string', 'format' => 'date'],
+                            'views' => ['type' => 'integer'],
+                            'crawler_views' => ['type' => 'integer'],
+                            'by_kind' => ['type' => 'object', 'additionalProperties' => ['type' => 'integer']],
+                            'per_day' => ['type' => 'array', 'items' => ['type' => 'object', 'required' => ['day', 'views', 'crawler_views'], 'properties' => ['day' => ['type' => 'string', 'format' => 'date'], 'views' => ['type' => 'integer'], 'crawler_views' => ['type' => 'integer']]]],
+                            'referrers' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Referrer']],
+                        ],
+                    ],
+                    'ReferrerList' => [
+                        'type' => 'object',
+                        'required' => ['from', 'to', 'items'],
+                        'properties' => [
+                            'section' => ['type' => ['string', 'null']],
+                            'from' => ['type' => 'string', 'format' => 'date'],
+                            'to' => ['type' => 'string', 'format' => 'date'],
+                            'items' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Referrer']],
                         ],
                     ],
                     'ArticleList' => [

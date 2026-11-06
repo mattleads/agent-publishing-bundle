@@ -5,6 +5,7 @@ declare(strict_types=1);
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
+use MattLeads\AgentPublishingBundle\Api\StatsController;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
@@ -28,4 +29,11 @@ return static function (RoutingConfigurator $routes): void {
     $routes->add('mattleads_agent_publishing_article_transition', $prefix . '/articles/{id}/{transition}')
         ->controller([ArticleController::class, 'transition'])->methods(['POST'])
         ->requirements(['transition' => implode('|', ArticleWorkflow::transitions())]);
+
+    $routes->add('mattleads_agent_publishing_article_stats', $prefix . '/articles/{id}/stats')
+        ->controller([StatsController::class, 'article'])->methods(['GET']);
+    $routes->add('mattleads_agent_publishing_stats_summary', $prefix . '/stats/summary')
+        ->controller([StatsController::class, 'summary'])->methods(['GET']);
+    $routes->add('mattleads_agent_publishing_stats_referrers', $prefix . '/stats/referrers')
+        ->controller([StatsController::class, 'referrers'])->methods(['GET']);
 };

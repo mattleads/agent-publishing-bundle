@@ -2,23 +2,31 @@
 
 declare(strict_types=1);
 
+use MattLeads\AgentPublishingBundle\Analytics\ArticleViewedHandler;
+use MattLeads\AgentPublishingBundle\Analytics\ArticleViewListener;
+use MattLeads\AgentPublishingBundle\Analytics\ViewRecorder;
+use MattLeads\AgentPublishingBundle\Analytics\VisitClassifier;
 use MattLeads\AgentPublishingBundle\Api\ApiAccess;
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
 use MattLeads\AgentPublishingBundle\Api\ArticleNormalizer;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
+use MattLeads\AgentPublishingBundle\Api\StatsController;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineArticleStorage;
+use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineStatsStorage;
 use MattLeads\AgentPublishingBundle\Command\CreateApiKeyCommand;
 use MattLeads\AgentPublishingBundle\Command\PublishScheduledCommand;
 use MattLeads\AgentPublishingBundle\Contract\ApiKeyStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
+use MattLeads\AgentPublishingBundle\Contract\StatsStorageInterface;
 use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyAuthenticator;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyManager;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryArticleStorage;
+use MattLeads\AgentPublishingBundle\Storage\InMemoryStatsStorage;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleManager;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -46,6 +54,8 @@ return static function (ContainerConfigurator $container): void {
     $services->set(InMemoryApiKeyStorage::class);
     $services->set(DoctrineArticleStorage::class)->args([service('doctrine.orm.entity_manager')]);
     $services->set(DoctrineApiKeyStorage::class)->args([service('doctrine.orm.entity_manager')]);
+    $services->set(InMemoryStatsStorage::class);
+    $services->set(DoctrineStatsStorage::class)->args([service('doctrine.orm.entity_manager')]);
 
     // --- domain -----------------------------------------------------------------------------------------------
     $services->set(ArticleWorkflow::class)
@@ -54,6 +64,25 @@ return static function (ContainerConfigurator $container): void {
         ->args([service(ArticleStorageInterface::class), service(SectionRegistry::class), service('clock')->nullOnInvalid()]);
     $services->set(ScheduledPublisher::class)
         ->args([service(ArticleStorageInterface::class), service(ArticleWorkflow::class), service('clock')->nullOnInvalid(), service('logger')->nullOnInvalid()]);
+
+    // --- analytics --------------------------------------------------------------------------------------------
+    $services->set('mattleads_agent_publishing.analytics.timezone', DateTimeZone::class)
+        ->args([abstract_arg('from bundle config')]);
+    $services->set(VisitClassifier::class)
+        ->args(['$siteHost' => abstract_arg('from bundle config')]);
+    $services->set(ArticleViewedHandler::class)
+        ->args([service(StatsStorageInterface::class), service('mattleads_agent_publishing.analytics.timezone')]);
+    $services->set(ViewRecorder::class)
+        ->args([service(VisitClassifier::class), service(ArticleViewedHandler::class), service('messenger.default_bus')->nullOnInvalid(), service('clock')->nullOnInvalid()])
+        ->public();
+    $services->set(ArticleViewListener::class)
+        ->args([
+            service(ArticleStorageInterface::class),
+            service(SectionRegistry::class),
+            service(ViewRecorder::class),
+            '$slugAttribute' => abstract_arg('from bundle config'),
+            '$localeAttribute' => abstract_arg('from bundle config'),
+        ]);
 
     // --- security ---------------------------------------------------------------------------------------------
     $services->set(ApiKeyManager::class)
@@ -77,6 +106,17 @@ return static function (ContainerConfigurator $container): void {
             service(ArticleWorkflow::class),
             service(ArticleNormalizer::class),
             service(ApiAccess::class),
+        ])
+        ->tag('controller.service_arguments')->public();
+
+    $services->set(StatsController::class)
+        ->args([
+            service(StatsStorageInterface::class),
+            service(ArticleStorageInterface::class),
+            service(SectionRegistry::class),
+            service(ApiAccess::class),
+            service('mattleads_agent_publishing.analytics.timezone'),
+            service('clock')->nullOnInvalid(),
         ])
         ->tag('controller.service_arguments')->public();
 

@@ -52,6 +52,11 @@ final class DoctrineArticleStorage implements ArticleStorageInterface
         return 0 < (int) $qb->getQuery()->getSingleScalarResult();
     }
 
+    public function findBySlug(string $section, string $locale, string $slug): ?ArticleInterface
+    {
+        return $this->em->getRepository(Article::class)->findOneBy(['section' => $section, 'locale' => $locale, 'slug' => $slug]);
+    }
+
     public function create(ArticleInput $input, string $slug, ?string $createdBy, \DateTimeImmutable $now): ArticleInterface
     {
         $article = new Article((string) new Ulid(), (string) $input->section, (string) $input->locale, (string) $input->title, $slug, (string) $input->body, $input->format ?? 'markdown', $now, $createdBy);

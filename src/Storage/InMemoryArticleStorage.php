@@ -49,6 +49,17 @@ final class InMemoryArticleStorage implements ArticleStorageInterface
         return false;
     }
 
+    public function findBySlug(string $section, string $locale, string $slug): ?ArticleInterface
+    {
+        foreach ($this->articles as $article) {
+            if ($article->getSection() === $section && $article->getLocale() === $locale && $article->getSlug() === $slug) {
+                return $article;
+            }
+        }
+
+        return null;
+    }
+
     public function create(ArticleInput $input, string $slug, ?string $createdBy, \DateTimeImmutable $now): ArticleInterface
     {
         $article = new Article((string) new Ulid(), (string) $input->section, (string) $input->locale, (string) $input->title, $slug, (string) $input->body, $input->format ?? 'markdown', $now, $createdBy);
