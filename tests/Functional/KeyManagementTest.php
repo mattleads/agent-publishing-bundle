@@ -114,6 +114,32 @@ final class KeyManagementTest extends TestCase
         $kernel->shutdown();
     }
 
+    public function testKeyManagementCanBeDisabled(): void
+    {
+        $kernel = new TestKernel(['storage' => 'memory', 'api' => ['key_management' => false]]);
+        $kernel->boot();
+        $container = $kernel->getContainer()->get('test.service_container');
+        \assert($container instanceof ContainerInterface);
+        $keys = $container->get(ApiKeyManager::class);
+        \assert($keys instanceof ApiKeyManager);
+        $admin = $keys->issue('admin', Scope::cases())['secret'];
+
+        $client = new KernelBrowser($kernel);
+        $client->disableReboot();
+        $this->api($client, 'GET', '/keys', $admin);
+        self::assertSame(Response::HTTP_NOT_FOUND, $client->getResponse()->getStatusCode());
+        self::assertStringContainsString('disabled', $this->json($client)['error']);
+        $this->api($client, 'POST', '/keys', $admin, ['name' => 'x', 'scopes' => ['articles:read']]);
+        self::assertSame(Response::HTTP_NOT_FOUND, $client->getResponse()->getStatusCode());
+
+        $client->request('GET', self::PREFIX . '/openapi.json');
+        $doc = $this->json($client);
+        self::assertArrayNotHasKey(self::PREFIX . '/keys', $doc['paths']);
+        self::assertArrayHasKey(self::PREFIX . '/articles', $doc['paths']);
+
+        $kernel->shutdown();
+    }
+
     /** @param array<string, mixed>|null $body */
     private function api(KernelBrowser $client, string $method, string $path, string $secret, ?array $body = null): void
     {

@@ -174,7 +174,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ApiAccess::class)->args([service('security.token_storage')]);
     $services->set(ArticleNormalizer::class)->args([service(ArticleWorkflow::class)]);
     $services->set(OpenApiController::class)
-        ->args([param('mattleads_agent_publishing.api.prefix')])
+        ->args([param('mattleads_agent_publishing.api.prefix'), '$keyManagement' => abstract_arg('from bundle config')])
         ->tag('controller.service_arguments')->public();
     $services->set(SectionController::class)
         ->args([service(SectionRegistry::class), service(ApiAccess::class)])
@@ -198,6 +198,7 @@ return static function (ContainerConfigurator $container): void {
             service(SectionRegistry::class),
             service(ApiAccess::class),
             service('clock')->nullOnInvalid(),
+            '$enabled' => abstract_arg('from bundle config'),
         ])
         ->tag('controller.service_arguments')->public();
     $services->set(LintController::class)

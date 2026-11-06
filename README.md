@@ -88,6 +88,14 @@ DELETE /api/publisher/v1/keys/{id}   revoke
 
 A key can only grant a subset of its own scopes and sections, and a section-restricted key only sees and revokes keys inside its sections. Secrets and hashes are never returned by the read endpoints.
 
+To keep key issuance on the command line only, switch the endpoints off; they answer 404 and leave the OpenAPI document:
+
+```yaml
+mattleads_agent_publishing:
+    api:
+        key_management: false
+```
+
 ## Use the API
 
 The OpenAPI 3.1 document is served at `GET /api/publisher/v1/openapi.json`. Point a client generator or an agent at it; every operation names the scope it needs in `x-scope`.

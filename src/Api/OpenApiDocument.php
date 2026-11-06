@@ -21,7 +21,7 @@ final class OpenApiDocument
     public const VERSION = '0.1';
 
     /** @return array<string, mixed> */
-    public static function build(string $prefix): array
+    public static function build(string $prefix, bool $keyManagement = true): array
     {
         $states = array_map(static fn(ArticleState $s) => $s->value, ArticleState::cases());
         $article = ['$ref' => '#/components/schemas/Article'];
@@ -162,49 +162,10 @@ final class OpenApiDocument
             ],
         ];
 
-        $keyId = ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string'], 'description' => 'Key id (ULID).'];
-        $apiKey = ['$ref' => '#/components/schemas/ApiKey'];
-        $paths[$prefix . '/keys'] = [
-            'get' => [
-                'operationId' => 'listKeys',
-                'summary' => 'Keys this key may manage',
-                'description' => 'Secrets are never returned. A section-restricted key sees only keys inside its sections.',
-                'tags' => ['keys'],
-                'x-scope' => Scope::KeysManage->value,
-                'responses' => $errors(['200' => $json(['type' => 'object', 'required' => ['items', 'total'], 'properties' => ['items' => ['type' => 'array', 'items' => $apiKey], 'total' => ['type' => 'integer']]], 'Keys.')]),
-            ],
-            'post' => [
-                'operationId' => 'createKey',
-                'summary' => 'Issue a key',
-                'description' => 'The new key may hold only a subset of your scopes and sections. The secret is in the response once and never again.',
-                'tags' => ['keys'],
-                'x-scope' => Scope::KeysManage->value,
-                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ApiKeyCreate']]]],
-                'responses' => $errors([
-                    '201' => $json(['$ref' => '#/components/schemas/ApiKeyCreated'], 'The key, with its secret.'),
-                    '422' => $json($problem, 'Validation failed, including scopes or sections you cannot grant.'),
-                ]),
-            ],
-        ];
-        $paths[$prefix . '/keys/{id}'] = [
-            'get' => [
-                'operationId' => 'getKey',
-                'summary' => 'Read a key',
-                'tags' => ['keys'],
-                'x-scope' => Scope::KeysManage->value,
-                'parameters' => [$keyId],
-                'responses' => $errors(['200' => $json($apiKey, 'The key.'), '404' => $json($problem, 'Unknown id, or outside your sections.')]),
-            ],
-            'delete' => [
-                'operationId' => 'revokeKey',
-                'summary' => 'Revoke a key',
-                'description' => 'Revocation is immediate and permanent. The key row stays for the audit trail.',
-                'tags' => ['keys'],
-                'x-scope' => Scope::KeysManage->value,
-                'parameters' => [$keyId],
-                'responses' => $errors(['200' => $json($apiKey, 'The revoked key.'), '404' => $json($problem, 'Unknown id, or outside your sections.')]),
-            ],
-        ];
+        if ($keyManagement) {
+            $paths += self::keyPaths($prefix, $json, $errors, $problem);
+        }
+
 
         $period = [
             ['name' => 'from', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'First day, inclusive. Defaults to 29 days before "to".'],
@@ -362,7 +323,7 @@ final class OpenApiDocument
                     ],
                     'ApiKeyCreated' => [
                         'allOf' => [
-                            $apiKey,
+                            ['$ref' => '#/components/schemas/ApiKey'],
                             ['type' => 'object', 'required' => ['secret'], 'properties' => ['secret' => ['type' => 'string', 'description' => 'Shown once. Store it now.']]],
                         ],
                     ],
@@ -444,5 +405,62 @@ final class OpenApiDocument
                 ],
             ],
         ];
+    }
+
+    /**
+     * @param \Closure(array<mixed>, string): array<mixed> $json
+     * @param \Closure(array<mixed>=): array<mixed>        $errors
+     * @param array<string, mixed>                         $problem
+     *
+     * @return array<string, mixed>
+     */
+    private static function keyPaths(string $prefix, \Closure $json, \Closure $errors, array $problem): array
+    {
+        $keyId = ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string'], 'description' => 'Key id (ULID).'];
+        $apiKey = ['$ref' => '#/components/schemas/ApiKey'];
+        $paths = [];
+        $paths[$prefix . '/keys'] = [
+            'get' => [
+                'operationId' => 'listKeys',
+                'summary' => 'Keys this key may manage',
+                'description' => 'Secrets are never returned. A section-restricted key sees only keys inside its sections.',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'responses' => $errors(['200' => $json(['type' => 'object', 'required' => ['items', 'total'], 'properties' => ['items' => ['type' => 'array', 'items' => $apiKey], 'total' => ['type' => 'integer']]], 'Keys.')]),
+            ],
+            'post' => [
+                'operationId' => 'createKey',
+                'summary' => 'Issue a key',
+                'description' => 'The new key may hold only a subset of your scopes and sections. The secret is in the response once and never again.',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ApiKeyCreate']]]],
+                'responses' => $errors([
+                    '201' => $json(['$ref' => '#/components/schemas/ApiKeyCreated'], 'The key, with its secret.'),
+                    '422' => $json($problem, 'Validation failed, including scopes or sections you cannot grant.'),
+                ]),
+            ],
+        ];
+        $paths[$prefix . '/keys/{id}'] = [
+            'get' => [
+                'operationId' => 'getKey',
+                'summary' => 'Read a key',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'parameters' => [$keyId],
+                'responses' => $errors(['200' => $json($apiKey, 'The key.'), '404' => $json($problem, 'Unknown id, or outside your sections.')]),
+            ],
+            'delete' => [
+                'operationId' => 'revokeKey',
+                'summary' => 'Revoke a key',
+                'description' => 'Revocation is immediate and permanent. The key row stays for the audit trail.',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'parameters' => [$keyId],
+                'responses' => $errors(['200' => $json($apiKey, 'The revoked key.'), '404' => $json($problem, 'Unknown id, or outside your sections.')]),
+            ],
+        ];
+
+        return $paths;
     }
 }

@@ -8,6 +8,8 @@ use MattLeads\AgentPublishingBundle\Analytics\ArticleViewedHandler;
 use MattLeads\AgentPublishingBundle\Analytics\ArticleViewListener;
 use MattLeads\AgentPublishingBundle\Analytics\ViewRecorder;
 use MattLeads\AgentPublishingBundle\Analytics\VisitClassifier;
+use MattLeads\AgentPublishingBundle\Api\KeyController;
+use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\StatsController;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineArticleStorage;
@@ -71,8 +73,10 @@ final class MattLeadsAgentPublishingBundle extends AbstractBundle
     {
         $container->import('../config/services.php');
 
-        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, stats_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>, lint: array{require_faq: bool, min_words: int, min_internal_links: int}}>, api: array{prefix: string}, analytics: array{enabled: bool, timezone: string, site_host: ?string, slug_attribute: string, locale_attribute: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}, seo: array{base_url: ?string, url_pattern: string, url_resolver: ?string, site_name: ?string, site_description: ?string, publisher: array{name: ?string, url: ?string, logo: ?string}, author: array{name: ?string, url: ?string}, jsonld_type: string, sitemap: array{enabled: bool, path: string}, llms_txt: array{enabled: bool, path: string, per_section: int}, max_age: int}} $config */
+        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, stats_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>, lint: array{require_faq: bool, min_words: int, min_internal_links: int}}>, api: array{prefix: string, key_management: bool}, analytics: array{enabled: bool, timezone: string, site_host: ?string, slug_attribute: string, locale_attribute: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}, seo: array{base_url: ?string, url_pattern: string, url_resolver: ?string, site_name: ?string, site_description: ?string, publisher: array{name: ?string, url: ?string, logo: ?string}, author: array{name: ?string, url: ?string}, jsonld_type: string, sitemap: array{enabled: bool, path: string}, llms_txt: array{enabled: bool, path: string, per_section: int}, max_age: int}} $config */
         $builder->setParameter('mattleads_agent_publishing.api.prefix', rtrim($config['api']['prefix'], '/'));
+        $builder->getDefinition(KeyController::class)->setArgument('$enabled', $config['api']['key_management']);
+        $builder->getDefinition(OpenApiController::class)->setArgument('$keyManagement', $config['api']['key_management']);
 
         $builder->getDefinition(SectionRegistry::class)
             ->setArgument('$sections', $config['sections'])

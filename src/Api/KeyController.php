@@ -28,11 +28,12 @@ final class KeyController
         private readonly SectionRegistry $sections,
         private readonly ApiAccess $access,
         private readonly ?ClockInterface $clock = null,
+        private readonly bool $enabled = true,
     ) {}
 
     public function list(): JsonResponse
     {
-        if ($denied = $this->access->deny(Scope::KeysManage)) {
+        if ($denied = $this->disabled() ?? $this->access->deny(Scope::KeysManage)) {
             return $denied;
         }
         $manager = $this->access->key();
@@ -43,7 +44,7 @@ final class KeyController
 
     public function create(Request $request): JsonResponse
     {
-        if ($denied = $this->access->deny(Scope::KeysManage)) {
+        if ($denied = $this->disabled() ?? $this->access->deny(Scope::KeysManage)) {
             return $denied;
         }
         $manager = $this->access->key();
@@ -61,7 +62,7 @@ final class KeyController
 
     public function get(string $id): JsonResponse
     {
-        if ($denied = $this->access->deny(Scope::KeysManage)) {
+        if ($denied = $this->disabled() ?? $this->access->deny(Scope::KeysManage)) {
             return $denied;
         }
         $key = $this->visible($id);
@@ -71,7 +72,7 @@ final class KeyController
 
     public function revoke(string $id): JsonResponse
     {
-        if ($denied = $this->access->deny(Scope::KeysManage)) {
+        if ($denied = $this->disabled() ?? $this->access->deny(Scope::KeysManage)) {
             return $denied;
         }
         $key = $this->visible($id);
@@ -81,6 +82,11 @@ final class KeyController
         $this->keys->revoke($key);
 
         return new JsonResponse($this->normalizer->normalize($key));
+    }
+
+    private function disabled(): ?JsonResponse
+    {
+        return $this->enabled ? null : Problem::json(Response::HTTP_NOT_FOUND, 'Key management over the API is disabled on this site. Keys are issued with the agent-publishing:api-key:create command.');
     }
 
     private function visible(string $id): ?ApiKey
