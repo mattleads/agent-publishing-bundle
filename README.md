@@ -71,9 +71,22 @@ The secret is printed once. Scopes:
 | `articles:approve` | approve or reject articles in review |
 | `articles:publish` | publish directly or on a schedule, archive |
 | `stats:read` | view counts and referrers |
-| `keys:manage` | issue and revoke keys (planned) |
+| `keys:manage` | list, issue and revoke keys within your own scopes and sections |
 
-A key with no `--section` can write to every section.
+A key with no `--section` can write to every section. `--expires="+90 days"` sets an expiry.
+
+### Keys over the API
+
+With `keys:manage`, a platform can issue keys for its own agents without shell access:
+
+```
+GET    /api/publisher/v1/keys
+POST   /api/publisher/v1/keys        { name, scopes, sections?, expires_at? }   secret returned once
+GET    /api/publisher/v1/keys/{id}
+DELETE /api/publisher/v1/keys/{id}   revoke
+```
+
+A key can only grant a subset of its own scopes and sections, and a section-restricted key only sees and revokes keys inside its sections. Secrets and hashes are never returned by the read endpoints.
 
 ## Use the API
 
@@ -241,7 +254,7 @@ mattleads_agent_publishing:
 - **HTML bodies** (`format: html`) are stored as sent. If you render them, sanitize first, for example with `symfony/html-sanitizer`; an agent key with `articles:draft` must not be able to inject script into your pages even before a human approves.
 - **Public URLs** in JSON-LD, the sitemap and llms.txt use `seo.base_url` when set, else the request host. Set `base_url` in production, or at least `framework.trusted_hosts`, so a forged `Host` header cannot plant another domain in cached output.
 - **Analytics** stores counts only, keyed by referrer host and visit kind. Referrer spam creates rows; route `ArticleViewed` to an async transport and prune old rollups if it becomes a problem.
-- **Keys do not expire.** Revoke with `ApiKeyManager::revoke()` or by setting `revoked_at`; an expiry field is planned.
+- **Expiry and revocation.** Keys can carry `expires_at`; revoke through `DELETE /keys/{id}`, the manager, or by setting `revoked_at`. Revoked and expired keys answer 401 on the next request.
 
 ## Bring your own storage
 

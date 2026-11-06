@@ -7,8 +7,10 @@ use MattLeads\AgentPublishingBundle\Analytics\ArticleViewListener;
 use MattLeads\AgentPublishingBundle\Analytics\ViewRecorder;
 use MattLeads\AgentPublishingBundle\Analytics\VisitClassifier;
 use MattLeads\AgentPublishingBundle\Api\ApiAccess;
+use MattLeads\AgentPublishingBundle\Api\ApiKeyNormalizer;
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
 use MattLeads\AgentPublishingBundle\Api\ArticleNormalizer;
+use MattLeads\AgentPublishingBundle\Api\KeyController;
 use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
@@ -187,6 +189,17 @@ return static function (ContainerConfigurator $container): void {
         ])
         ->tag('controller.service_arguments')->public();
 
+    $services->set(ApiKeyNormalizer::class);
+    $services->set(KeyController::class)
+        ->args([
+            service(ApiKeyManager::class),
+            service(ApiKeyStorageInterface::class),
+            service(ApiKeyNormalizer::class),
+            service(SectionRegistry::class),
+            service(ApiAccess::class),
+            service('clock')->nullOnInvalid(),
+        ])
+        ->tag('controller.service_arguments')->public();
     $services->set(LintController::class)
         ->args([
             service(Linter::class),

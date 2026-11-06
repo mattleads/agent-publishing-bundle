@@ -31,10 +31,10 @@ final class ApiKeyManager
      *
      * @return array{key: ApiKey, secret: string} the secret is shown once and never stored
      */
-    public function issue(string $name, array $scopes, array $sections = []): array
+    public function issue(string $name, array $scopes, array $sections = [], ?\DateTimeImmutable $expiresAt = null): array
     {
         $secret = self::PREFIX . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-        $key = new ApiKey((string) new Ulid(), $name, $this->hash($secret), $scopes, $sections, $this->now());
+        $key = new ApiKey((string) new Ulid(), $name, $this->hash($secret), $scopes, $sections, $this->now(), $expiresAt);
         $this->storage->save($key);
 
         return ['key' => $key, 'secret' => $secret];
@@ -47,7 +47,7 @@ final class ApiKeyManager
             return null;
         }
         $key = $this->storage->findByHash($this->hash($secret));
-        if (null === $key || $key->isRevoked()) {
+        if (null === $key || $key->isRevoked() || $key->isExpired($this->now())) {
             return null;
         }
         $key->markUsed($this->now());

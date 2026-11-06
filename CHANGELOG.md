@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Key management over the API: `GET/POST /keys`, `GET/DELETE /keys/{id}` under `keys:manage`. A key can only grant a subset of its own scopes and sections; restricted keys only see keys inside their sections.
+- Key expiry: `expires_at` on keys, `--expires` on the console command; expired keys are refused like revoked ones. Doctrine users need a migration adding `expires_at` to `agent_publishing_api_key`.
+
 ## [0.1.1] - 2026-11-06
 
 ### Security

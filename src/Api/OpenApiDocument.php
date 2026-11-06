@@ -162,6 +162,50 @@ final class OpenApiDocument
             ],
         ];
 
+        $keyId = ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string'], 'description' => 'Key id (ULID).'];
+        $apiKey = ['$ref' => '#/components/schemas/ApiKey'];
+        $paths[$prefix . '/keys'] = [
+            'get' => [
+                'operationId' => 'listKeys',
+                'summary' => 'Keys this key may manage',
+                'description' => 'Secrets are never returned. A section-restricted key sees only keys inside its sections.',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'responses' => $errors(['200' => $json(['type' => 'object', 'required' => ['items', 'total'], 'properties' => ['items' => ['type' => 'array', 'items' => $apiKey], 'total' => ['type' => 'integer']]], 'Keys.')]),
+            ],
+            'post' => [
+                'operationId' => 'createKey',
+                'summary' => 'Issue a key',
+                'description' => 'The new key may hold only a subset of your scopes and sections. The secret is in the response once and never again.',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ApiKeyCreate']]]],
+                'responses' => $errors([
+                    '201' => $json(['$ref' => '#/components/schemas/ApiKeyCreated'], 'The key, with its secret.'),
+                    '422' => $json($problem, 'Validation failed, including scopes or sections you cannot grant.'),
+                ]),
+            ],
+        ];
+        $paths[$prefix . '/keys/{id}'] = [
+            'get' => [
+                'operationId' => 'getKey',
+                'summary' => 'Read a key',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'parameters' => [$keyId],
+                'responses' => $errors(['200' => $json($apiKey, 'The key.'), '404' => $json($problem, 'Unknown id, or outside your sections.')]),
+            ],
+            'delete' => [
+                'operationId' => 'revokeKey',
+                'summary' => 'Revoke a key',
+                'description' => 'Revocation is immediate and permanent. The key row stays for the audit trail.',
+                'tags' => ['keys'],
+                'x-scope' => Scope::KeysManage->value,
+                'parameters' => [$keyId],
+                'responses' => $errors(['200' => $json($apiKey, 'The revoked key.'), '404' => $json($problem, 'Unknown id, or outside your sections.')]),
+            ],
+        ];
+
         $period = [
             ['name' => 'from', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'First day, inclusive. Defaults to 29 days before "to".'],
             ['name' => 'to', 'in' => 'query', 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'Last day, inclusive. Defaults to today in the analytics timezone.'],
@@ -227,7 +271,7 @@ final class OpenApiDocument
             ],
             'security' => [['apiKey' => []]],
             'tags' => [
-                ['name' => 'sections'], ['name' => 'articles'], ['name' => 'workflow'], ['name' => 'lint'], ['name' => 'stats'],
+                ['name' => 'sections'], ['name' => 'articles'], ['name' => 'workflow'], ['name' => 'lint'], ['name' => 'stats'], ['name' => 'keys'],
             ],
             'paths' => $paths,
             'components' => [
@@ -289,6 +333,37 @@ final class OpenApiDocument
                             'updated_at' => ['type' => 'string', 'format' => 'date-time'],
                             'published_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
                             'publish_at' => ['type' => ['string', 'null'], 'format' => 'date-time', 'description' => 'Set while the state is "scheduled".'],
+                        ],
+                    ],
+                    'ApiKey' => [
+                        'type' => 'object',
+                        'required' => ['id', 'name', 'scopes', 'sections', 'created_at', 'active'],
+                        'properties' => [
+                            'id' => ['type' => 'string'],
+                            'name' => ['type' => 'string'],
+                            'scopes' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => Scope::values()]],
+                            'sections' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Empty means every section.'],
+                            'created_at' => ['type' => 'string', 'format' => 'date-time'],
+                            'last_used_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
+                            'expires_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
+                            'revoked_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
+                            'active' => ['type' => 'boolean', 'description' => 'Neither revoked nor expired.'],
+                        ],
+                    ],
+                    'ApiKeyCreate' => [
+                        'type' => 'object',
+                        'required' => ['name', 'scopes'],
+                        'properties' => [
+                            'name' => ['type' => 'string', 'maxLength' => 100, 'description' => 'Who holds the key.'],
+                            'scopes' => ['type' => 'array', 'minItems' => 1, 'items' => ['type' => 'string', 'enum' => Scope::values()]],
+                            'sections' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Restrict to these sections. Required when your own key is restricted.'],
+                            'expires_at' => ['type' => 'string', 'format' => 'date-time', 'description' => 'Optional. The key stops working at this time.'],
+                        ],
+                    ],
+                    'ApiKeyCreated' => [
+                        'allOf' => [
+                            $apiKey,
+                            ['type' => 'object', 'required' => ['secret'], 'properties' => ['secret' => ['type' => 'string', 'description' => 'Shown once. Store it now.']]],
                         ],
                     ],
                     'LintCheck' => [

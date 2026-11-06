@@ -37,12 +37,16 @@ class ApiKey
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $revokedAt = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $expiresAt = null;
+
     /**
      * @param list<Scope>  $scopes
      * @param list<string> $sections
      */
-    public function __construct(string $id, string $name, string $hash, array $scopes, array $sections, \DateTimeImmutable $now)
+    public function __construct(string $id, string $name, string $hash, array $scopes, array $sections, \DateTimeImmutable $now, ?\DateTimeImmutable $expiresAt = null)
     {
+        $this->expiresAt = $expiresAt;
         $this->id = $id;
         $this->name = $name;
         $this->hash = $hash;
@@ -106,6 +110,26 @@ class ApiKey
     public function isRevoked(): bool
     {
         return null !== $this->revokedAt;
+    }
+
+    public function getExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    public function isExpired(\DateTimeImmutable $now): bool
+    {
+        return null !== $this->expiresAt && $this->expiresAt <= $now;
+    }
+
+    /** Whether this key may act on $other: an unrestricted key manages everything, a restricted one only keys inside its sections. */
+    public function manages(self $other): bool
+    {
+        if ([] === $this->sections) {
+            return true;
+        }
+
+        return [] !== $other->sections && [] === array_diff($other->sections, $this->sections);
     }
 
     public function markUsed(\DateTimeImmutable $now): void

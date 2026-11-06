@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
+use MattLeads\AgentPublishingBundle\Api\KeyController;
 use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
@@ -36,6 +37,14 @@ return static function (RoutingConfigurator $routes): void {
         ->controller([LintController::class, 'article'])->methods(['POST']);
     $routes->add('mattleads_agent_publishing_lint', $prefix . '/lint')
         ->controller([LintController::class, 'payload'])->methods(['POST']);
+    $routes->add('mattleads_agent_publishing_keys', $prefix . '/keys')
+        ->controller([KeyController::class, 'list'])->methods(['GET']);
+    $routes->add('mattleads_agent_publishing_key_create', $prefix . '/keys')
+        ->controller([KeyController::class, 'create'])->methods(['POST']);
+    $routes->add('mattleads_agent_publishing_key', $prefix . '/keys/{id}')
+        ->controller([KeyController::class, 'get'])->methods(['GET']);
+    $routes->add('mattleads_agent_publishing_key_revoke', $prefix . '/keys/{id}')
+        ->controller([KeyController::class, 'revoke'])->methods(['DELETE']);
     $routes->add('mattleads_agent_publishing_article_stats', $prefix . '/articles/{id}/stats')
         ->controller([StatsController::class, 'article'])->methods(['GET']);
     $routes->add('mattleads_agent_publishing_stats_summary', $prefix . '/stats/summary')

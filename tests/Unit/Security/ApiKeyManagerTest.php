@@ -45,6 +45,12 @@ final class ApiKeyManagerTest extends TestCase
         self::assertNull($manager->resolve('not-a-key'));
         self::assertNull((new ApiKeyManager($storage, 'other-pepper'))->resolve($issued['secret']), 'a different pepper does not match');
 
+        $expiring = $manager->issue('short-lived', [Scope::ArticlesRead], [], $clock->now()->modify('+1 hour'));
+        self::assertNotNull($manager->resolve($expiring['secret']));
+        $clock->modify('+2 hours');
+        self::assertNull($manager->resolve($expiring['secret']), 'expired keys are refused');
+        self::assertTrue($expiring['key']->isExpired($clock->now()));
+
         $manager->revoke($key);
         self::assertNull($manager->resolve($issued['secret']));
         self::assertTrue($key->isRevoked());
