@@ -30,17 +30,18 @@ final class ArticleController
 
     public function list(Request $request): JsonResponse
     {
-        $section = $request->query->get('section');
-        if ($denied = $this->access->deny(Scope::ArticlesRead, \is_string($section) ? $section : null)) {
+        $requested = $request->query->get('section');
+        if ($denied = $this->access->deny(Scope::ArticlesRead, \is_string($requested) ? $requested : null)) {
             return $denied;
         }
         try {
+            $section = $this->access->listingSection(\is_string($requested) ? $requested : null);
             $state = $request->query->get('state');
             if (\is_string($state) && null === ArticleState::tryFrom($state)) {
                 throw new ValidationException([\sprintf('Unknown state "%s".', $state)]);
             }
             $filter = new ArticleFilter(
-                \is_string($section) ? $section : null,
+                $section,
                 \is_string($l = $request->query->get('locale')) ? $l : null,
                 \is_string($state) ? ArticleState::from($state) : null,
                 $request->query->getInt('page', 1),
@@ -86,7 +87,7 @@ final class ArticleController
         if (null === $article) {
             return Problem::json(Response::HTTP_NOT_FOUND, 'Article not found.');
         }
-        if ($denied = $this->access->deny(Scope::ArticlesRead, $article->getSection())) {
+        if ($denied = $this->access->denyForArticle(Scope::ArticlesRead, $article)) {
             return $denied;
         }
 
@@ -99,7 +100,7 @@ final class ArticleController
         if (null === $article) {
             return Problem::json(Response::HTTP_NOT_FOUND, 'Article not found.');
         }
-        if ($denied = $this->access->deny(Scope::ArticlesDraft, $article->getSection())) {
+        if ($denied = $this->access->denyForArticle(Scope::ArticlesDraft, $article)) {
             return $denied;
         }
         try {
@@ -127,7 +128,7 @@ final class ArticleController
         } catch (ValidationException $e) {
             return $this->invalid($e);
         }
-        if ($denied = $this->access->deny($scope, $article->getSection())) {
+        if ($denied = $this->access->denyForArticle($scope, $article)) {
             return $denied;
         }
 

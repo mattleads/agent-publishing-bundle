@@ -13,6 +13,12 @@ use Symfony\Component\Clock\MockClock;
 
 final class ApiKeyManagerTest extends TestCase
 {
+    public function testEmptyPepperIsRefused(): void
+    {
+        $this->expectException(\LogicException::class);
+        (new ApiKeyManager(new InMemoryApiKeyStorage(), ''))->issue('x', []);
+    }
+
     public function testIssueResolveAndRevoke(): void
     {
         $storage = new InMemoryApiKeyStorage();

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Security
+- Section-restricted keys get 404 for articles in other sections, must name a section for listings and totals when restricted to several, and default to their only section otherwise.
+- Tags are limited to 20 of at most 64 characters each.
+- `ApiKeyManager` refuses an empty `kernel.secret`.
+
 ### Added
 - Article contracts (`ArticleInterface`, `ArticleStorageInterface`) with bundled in-memory and Doctrine storages.
 - Sections and locales declared in bundle configuration.

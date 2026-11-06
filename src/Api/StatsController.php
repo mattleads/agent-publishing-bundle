@@ -35,7 +35,7 @@ final class StatsController
         if (null === $article) {
             return Problem::json(Response::HTTP_NOT_FOUND, 'Article not found.');
         }
-        if ($denied = $this->access->deny(Scope::StatsRead, $article->getSection())) {
+        if ($denied = $this->access->denyForArticle(Scope::StatsRead, $article)) {
             return $denied;
         }
         try {
@@ -101,7 +101,8 @@ final class StatsController
     private function section(Request $request): ?string
     {
         $section = $request->query->getString('section');
-        if ('' === $section) {
+        $section = $this->access->listingSection('' === $section ? null : $section);
+        if (null === $section) {
             return null;
         }
         if (null === $this->sections->get($section)) {

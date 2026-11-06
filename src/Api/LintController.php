@@ -33,7 +33,7 @@ final class LintController
         if (null === $article) {
             return Problem::json(Response::HTTP_NOT_FOUND, 'Article not found.');
         }
-        if ($denied = $this->access->deny(Scope::ArticlesRead, $article->getSection())) {
+        if ($denied = $this->access->denyForArticle(Scope::ArticlesRead, $article)) {
             return $denied;
         }
         $section = $this->sections->get($article->getSection());

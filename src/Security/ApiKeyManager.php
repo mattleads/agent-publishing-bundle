@@ -19,7 +19,11 @@ final class ApiKeyManager
         #[\SensitiveParameter]
         private readonly string $pepper,
         private readonly ?ClockInterface $clock = null,
-    ) {}
+    ) {
+        if ('' === $pepper) {
+            throw new \LogicException('API keys are hashed with kernel.secret; set APP_SECRET to a non-empty value.');
+        }
+    }
 
     /**
      * @param list<Scope>  $scopes

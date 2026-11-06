@@ -233,6 +233,16 @@ mattleads_agent_publishing:
         site_host: example.com      # links from here count as internal; defaults to the request host
 ```
 
+## Security notes
+
+- **Keys** are 256-bit random secrets, shown once and stored as an HMAC-SHA256 keyed with `kernel.secret`. Changing `APP_SECRET` invalidates every key, which is also how you rotate them all at once. An empty `APP_SECRET` is refused.
+- **Scopes and sections** are checked on every endpoint. A key restricted to sections gets 404, not 403, for articles outside them, and listings and totals are limited to its sections.
+- **Rate limiting** is not built in. Put the API behind `symfony/rate-limiter` or your gateway; a brute-force on 256-bit secrets is not the concern, write amplification is.
+- **HTML bodies** (`format: html`) are stored as sent. If you render them, sanitize first, for example with `symfony/html-sanitizer`; an agent key with `articles:draft` must not be able to inject script into your pages even before a human approves.
+- **Public URLs** in JSON-LD, the sitemap and llms.txt use `seo.base_url` when set, else the request host. Set `base_url` in production, or at least `framework.trusted_hosts`, so a forged `Host` header cannot plant another domain in cached output.
+- **Analytics** stores counts only, keyed by referrer host and visit kind. Referrer spam creates rows; route `ArticleViewed` to an async transport and prune old rollups if it becomes a problem.
+- **Keys do not expire.** Revoke with `ApiKeyManager::revoke()` or by setting `revoked_at`; an expiry field is planned.
+
 ## Bring your own storage
 
 ```yaml

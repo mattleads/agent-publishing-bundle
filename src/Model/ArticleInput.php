@@ -10,6 +10,8 @@ namespace MattLeads\AgentPublishingBundle\Model;
 final class ArticleInput
 {
     public const FORMATS = ['markdown', 'html'];
+    public const MAX_TAGS = 20;
+    public const MAX_TAG_LENGTH = 64;
     private const FIELDS = ['section', 'locale', 'title', 'slug', 'summary', 'body', 'format', 'tags', 'translation_group'];
 
     /** @param list<string>|null $tags */
@@ -94,9 +96,16 @@ final class ArticleInput
                         $violations[] = 'Field "tags" must be a list of non-empty strings.';
                         break;
                     }
+                    if (mb_strlen(trim($tag)) > self::MAX_TAG_LENGTH) {
+                        $violations[] = \sprintf('Each tag must be at most %d characters.', self::MAX_TAG_LENGTH);
+                        break;
+                    }
                     $tags[] = trim($tag);
                 }
                 $tags = array_values(array_unique($tags));
+                if (\count($tags) > self::MAX_TAGS) {
+                    $violations[] = \sprintf('At most %d tags are allowed.', self::MAX_TAGS);
+                }
             }
         }
 
