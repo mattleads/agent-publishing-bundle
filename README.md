@@ -148,6 +148,39 @@ mattleads_agent_publishing:
 
 Add your own rule by implementing `LintRuleInterface` and tagging the service `mattleads_agent_publishing.lint_rule`.
 
+## SEO output: JSON-LD, sitemap and llms.txt
+
+The bundle needs to know your article URLs. By default it builds them from a pattern; set `url_resolver` to a service implementing `UrlResolverInterface` when your routing differs.
+
+```yaml
+mattleads_agent_publishing:
+    seo:
+        base_url: https://example.com          # defaults to the current request's scheme and host
+        url_pattern: '{base}{section_path}/{slug}'   # also {locale} and {section}
+        site_name: Example Engineering Blog
+        site_description: Articles on Symfony, PHP and running services in production.
+        publisher: { name: Example Ltd, url: https://example.com, logo: https://example.com/logo.png }
+        author: { name: Jane Doe, url: https://example.com/about }
+        jsonld_type: TechArticle               # Article | BlogPosting | NewsArticle | TechArticle
+        sitemap: { enabled: true, path: /sitemap-publisher.xml }
+        llms_txt: { enabled: true, path: /llms.txt, per_section: 50 }
+```
+
+**JSON-LD.** In the template that renders an article:
+
+```twig
+{{ agent_publishing_jsonld(article) }}
+{{ agent_publishing_jsonld(article, { image: asset('cover.png') }) }}   {# second argument overrides or adds keys #}
+```
+
+It emits a `<script type="application/ld+json">` with headline, description, dates, language, section, keywords, author and publisher. Without Twig, call `JsonLdBuilder::script()` or `build()` yourself.
+
+**Sitemap** at `/sitemap-publisher.xml` lists every published article with `lastmod`, and `hreflang` alternates for articles that share a `translation_group`, including `x-default` for the default locale. Reference it from your main sitemap index or `robots.txt`.
+
+**llms.txt** at `/llms.txt` follows llmstxt.org: the site name and description, then a Markdown list per section of recent published articles with their summaries, so language models know what the site offers.
+
+Both are public and sit outside the API prefix. Keep them out of your API firewall and `access_control`.
+
 ## Analytics
 
 The bundle counts views per article and per referrer, by day. It stores counts only: no cookies, no IP addresses, no user agents, no raw URLs. Each view is bucketed into a kind:

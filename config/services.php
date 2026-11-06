@@ -36,6 +36,14 @@ use MattLeads\AgentPublishingBundle\Lint\Rule\TitleLengthRule;
 use MattLeads\AgentPublishingBundle\Lint\Rule\WordCountRule;
 use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
+use MattLeads\AgentPublishingBundle\Seo\JsonLdBuilder;
+use MattLeads\AgentPublishingBundle\Seo\LlmsTxtBuilder;
+use MattLeads\AgentPublishingBundle\Seo\PatternUrlResolver;
+use MattLeads\AgentPublishingBundle\Seo\PublishedIndex;
+use MattLeads\AgentPublishingBundle\Seo\SeoController;
+use MattLeads\AgentPublishingBundle\Seo\SitemapBuilder;
+use MattLeads\AgentPublishingBundle\Seo\UrlResolverInterface;
+use MattLeads\AgentPublishingBundle\Twig\JsonLdExtension;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyAuthenticator;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyManager;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryApiKeyStorage;
@@ -113,6 +121,46 @@ return static function (ContainerConfigurator $container): void {
         ->tag('mattleads_agent_publishing.lint_rule', ['priority' => 40]);
     $services->set(Linter::class)
         ->args([tagged_iterator('mattleads_agent_publishing.lint_rule')]);
+
+    // --- seo --------------------------------------------------------------------------------------------------
+    $services->set(PatternUrlResolver::class)
+        ->args([
+            service(SectionRegistry::class),
+            '$pattern' => abstract_arg('from bundle config'),
+            '$baseUrl' => abstract_arg('from bundle config'),
+            '$requests' => service('request_stack')->nullOnInvalid(),
+        ]);
+    $services->set(PublishedIndex::class)->args([service(ArticleStorageInterface::class)]);
+    $services->set(JsonLdBuilder::class)
+        ->args([
+            service(UrlResolverInterface::class),
+            '$type' => abstract_arg('from bundle config'),
+            '$publisher' => abstract_arg('from bundle config'),
+            '$author' => abstract_arg('from bundle config'),
+        ])
+        ->public();
+    $services->set(SitemapBuilder::class)
+        ->args([service(PublishedIndex::class), service(UrlResolverInterface::class), service(SectionRegistry::class)]);
+    $services->set(LlmsTxtBuilder::class)
+        ->args([
+            service(PublishedIndex::class),
+            service(UrlResolverInterface::class),
+            service(SectionRegistry::class),
+            '$siteName' => abstract_arg('from bundle config'),
+            '$siteDescription' => abstract_arg('from bundle config'),
+            '$perSection' => abstract_arg('from bundle config'),
+        ]);
+    $services->set(SeoController::class)
+        ->args([
+            service(SitemapBuilder::class),
+            service(LlmsTxtBuilder::class),
+            '$sitemapEnabled' => abstract_arg('from bundle config'),
+            '$llmsTxtEnabled' => abstract_arg('from bundle config'),
+            '$maxAge' => abstract_arg('from bundle config'),
+        ])
+        ->tag('controller.service_arguments')->public();
+    $services->set(JsonLdExtension::class)
+        ->args([service(JsonLdBuilder::class), service(UrlResolverInterface::class)]);
 
     // --- security ---------------------------------------------------------------------------------------------
     $services->set(ApiKeyManager::class)

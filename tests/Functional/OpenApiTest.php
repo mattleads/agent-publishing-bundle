@@ -42,7 +42,7 @@ final class OpenApiTest extends TestCase
 
         $expected = [];
         foreach ($router->getRouteCollection() as $name => $route) {
-            if (!str_starts_with($name, 'mattleads_agent_publishing_') || 'mattleads_agent_publishing_openapi' === $name) {
+            if (!str_starts_with($name, 'mattleads_agent_publishing_') || \in_array($name, ['mattleads_agent_publishing_openapi', 'mattleads_agent_publishing_sitemap', 'mattleads_agent_publishing_llms_txt'], true)) {
                 continue;
             }
             foreach ($route->getMethods() as $method) {

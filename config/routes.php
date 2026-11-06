@@ -7,6 +7,7 @@ use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
 use MattLeads\AgentPublishingBundle\Api\StatsController;
+use MattLeads\AgentPublishingBundle\Seo\SeoController;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
@@ -41,4 +42,10 @@ return static function (RoutingConfigurator $routes): void {
         ->controller([StatsController::class, 'summary'])->methods(['GET']);
     $routes->add('mattleads_agent_publishing_stats_referrers', $prefix . '/stats/referrers')
         ->controller([StatsController::class, 'referrers'])->methods(['GET']);
+
+    // Public, outside the API prefix: exclude them from your API firewall.
+    $routes->add('mattleads_agent_publishing_sitemap', '%mattleads_agent_publishing.seo.sitemap_path%')
+        ->controller([SeoController::class, 'sitemap'])->methods(['GET']);
+    $routes->add('mattleads_agent_publishing_llms_txt', '%mattleads_agent_publishing.seo.llms_txt_path%')
+        ->controller([SeoController::class, 'llmsTxt'])->methods(['GET']);
 };

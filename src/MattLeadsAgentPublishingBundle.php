@@ -18,6 +18,12 @@ use MattLeads\AgentPublishingBundle\Contract\StatsStorageInterface;
 use MattLeads\AgentPublishingBundle\DependencyInjection\Configuration;
 use MattLeads\AgentPublishingBundle\Lint\Rule\LinksRule;
 use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
+use MattLeads\AgentPublishingBundle\Seo\JsonLdBuilder;
+use MattLeads\AgentPublishingBundle\Seo\LlmsTxtBuilder;
+use MattLeads\AgentPublishingBundle\Seo\PatternUrlResolver;
+use MattLeads\AgentPublishingBundle\Seo\SeoController;
+use MattLeads\AgentPublishingBundle\Seo\UrlResolverInterface;
+use MattLeads\AgentPublishingBundle\Twig\JsonLdExtension;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryArticleStorage;
@@ -28,6 +34,7 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Scheduler\RecurringMessage;
+use Twig\Extension\AbstractExtension;
 
 final class MattLeadsAgentPublishingBundle extends AbstractBundle
 {
@@ -64,7 +71,7 @@ final class MattLeadsAgentPublishingBundle extends AbstractBundle
     {
         $container->import('../config/services.php');
 
-        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, stats_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>, lint: array{require_faq: bool, min_words: int, min_internal_links: int}}>, api: array{prefix: string}, analytics: array{enabled: bool, timezone: string, site_host: ?string, slug_attribute: string, locale_attribute: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}} $config */
+        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, stats_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>, lint: array{require_faq: bool, min_words: int, min_internal_links: int}}>, api: array{prefix: string}, analytics: array{enabled: bool, timezone: string, site_host: ?string, slug_attribute: string, locale_attribute: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}, seo: array{base_url: ?string, url_pattern: string, url_resolver: ?string, site_name: ?string, site_description: ?string, publisher: array{name: ?string, url: ?string, logo: ?string}, author: array{name: ?string, url: ?string}, jsonld_type: string, sitemap: array{enabled: bool, path: string}, llms_txt: array{enabled: bool, path: string, per_section: int}, max_age: int}} $config */
         $builder->setParameter('mattleads_agent_publishing.api.prefix', rtrim($config['api']['prefix'], '/'));
 
         $builder->getDefinition(SectionRegistry::class)
@@ -73,6 +80,37 @@ final class MattLeadsAgentPublishingBundle extends AbstractBundle
             ->setArgument('$defaultLocale', $config['default_locale']);
 
         $builder->getDefinition(LinksRule::class)->setArgument('$siteHost', $config['analytics']['site_host']);
+
+        // --- seo --------------------------------------------------------------------------------------------------
+        $seo = $config['seo'];
+        $builder->setParameter('mattleads_agent_publishing.seo.sitemap_path', $seo['sitemap']['path']);
+        $builder->setParameter('mattleads_agent_publishing.seo.llms_txt_path', $seo['llms_txt']['path']);
+        if (null !== $seo['url_resolver']) {
+            $builder->setAlias(UrlResolverInterface::class, $seo['url_resolver']);
+            $builder->removeDefinition(PatternUrlResolver::class);
+        } else {
+            $builder->setAlias(UrlResolverInterface::class, PatternUrlResolver::class);
+            $builder->getDefinition(PatternUrlResolver::class)
+                ->setArgument('$pattern', $seo['url_pattern'])
+                ->setArgument('$baseUrl', $seo['base_url']);
+        }
+        $builder->getDefinition(JsonLdBuilder::class)
+            ->setArgument('$type', $seo['jsonld_type'])
+            ->setArgument('$publisher', $seo['publisher'])
+            ->setArgument('$author', $seo['author']);
+        $builder->getDefinition(LlmsTxtBuilder::class)
+            ->setArgument('$siteName', $seo['site_name'])
+            ->setArgument('$siteDescription', $seo['site_description'])
+            ->setArgument('$perSection', $seo['llms_txt']['per_section']);
+        $builder->getDefinition(SeoController::class)
+            ->setArgument('$sitemapEnabled', $seo['sitemap']['enabled'])
+            ->setArgument('$llmsTxtEnabled', $seo['llms_txt']['enabled'])
+            ->setArgument('$maxAge', $seo['max_age']);
+        if (class_exists(AbstractExtension::class)) {
+            $builder->getDefinition(JsonLdExtension::class)->addTag('twig.extension');
+        } else {
+            $builder->removeDefinition(JsonLdExtension::class);
+        }
 
         // --- analytics --------------------------------------------------------------------------------------------
         $builder->getDefinition('mattleads_agent_publishing.analytics.timezone')->setArgument(0, $config['analytics']['timezone']);

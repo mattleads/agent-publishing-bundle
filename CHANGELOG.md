@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Scoped API keys (`articles:read`, `articles:draft`, `articles:approve`, `articles:publish`, `stats:read`, `keys:manage`), a bearer-token authenticator and the `agent-publishing:api-key:create` command.
 - REST API: sections, article list/create/read/update, submit, approve, reject, publish, archive.
 - OpenAPI 3.1 document at `{prefix}/openapi.json`, generated from the same enums and workflow table as the code.
+- SEO output: `agent_publishing_jsonld()` and `agent_publishing_url()` Twig functions backed by `JsonLdBuilder`, a sitemap with hreflang alternates at `/sitemap-publisher.xml`, and `/llms.txt`. URLs come from a configurable pattern or a host `UrlResolverInterface`.
 - Lint: `POST /articles/{id}/lint` and `POST /lint` run eleven SEO and answer-engine rules on Markdown or HTML bodies and return pass/warn/fail per rule with fix hints. Rules are extensible via the `mattleads_agent_publishing.lint_rule` tag; per-section expectations under `sections.*.lint`.
 - Analytics: daily view and referrer rollups, visit classification (direct, internal, referral, search, social, ai_referral, ai_crawler, bot), a terminate-time listener keyed off the `_agent_publishing_section` route default, optional Messenger dispatch, and three `stats:read` endpoints.
 - Scheduled publishing: `agent-publishing:publish-scheduled` command for cron, or an optional Symfony Scheduler task (`scheduler.enabled`).
