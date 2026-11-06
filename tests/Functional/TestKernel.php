@@ -65,6 +65,7 @@ final class TestKernel extends Kernel
                 ],
             ],
             'access_control' => [
+                ['path' => '^/api/publisher/v1/openapi\.json$', 'roles' => 'PUBLIC_ACCESS'],
                 ['path' => '^/api/', 'roles' => 'ROLE_AGENT_PUBLISHING'],
             ],
         ]);

@@ -48,6 +48,7 @@ security:
             custom_authenticators:
                 - MattLeads\AgentPublishingBundle\Security\ApiKeyAuthenticator
     access_control:
+        - { path: ^/api/publisher/v1/openapi\.json$, roles: PUBLIC_ACCESS }
         - { path: ^/api/publisher, roles: ROLE_AGENT_PUBLISHING }
 ```
 
@@ -76,8 +77,10 @@ A key with no `--section` can write to every section.
 
 ## Use the API
 
+The OpenAPI 3.1 document is served at `GET /api/publisher/v1/openapi.json`. Point a client generator or an agent at it; every operation names the scope it needs in `x-scope`.
+
 ```
-GET    /api/publisher/v1/sections
+GET    /api/publisher/v1/openapi.json
 GET    /api/publisher/v1/articles?section=blog&locale=en&state=draft&page=1&per_page=20
 POST   /api/publisher/v1/articles                { section, locale, title, body, format?, slug?, summary?, tags?, translation_group? }
 GET    /api/publisher/v1/articles/{id}
@@ -94,6 +97,23 @@ Send the key as `Authorization: Bearer apb_...`. Errors are JSON with `error` an
 ## Workflow
 
 `draft` → `in_review` (submit) → `published` (approve) or back to `draft` (reject). A key with `articles:publish` can publish from `draft` or `in_review` directly, or schedule with `publish_at`, which moves the article to `scheduled`. `archive` ends the life of a published or scheduled article. Every transition dispatches `MattLeads\AgentPublishingBundle\Workflow\ArticleTransitioned`.
+
+### Scheduled publishing
+
+Something has to publish scheduled articles when their time comes. Pick one:
+
+```bash
+# cron, every minute
+* * * * * php /path/to/app/bin/console agent-publishing:publish-scheduled
+```
+
+```yaml
+# or Symfony Scheduler (composer require symfony/scheduler, then run messenger:consume scheduler_default)
+mattleads_agent_publishing:
+    scheduler: { enabled: true, frequency: '1 minute', schedule: default }
+```
+
+The transition is recorded with actor `scheduler` in the `ArticleTransitioned` event.
 
 ## Bring your own storage
 

@@ -9,6 +9,7 @@ use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineArticleStorage;
 use MattLeads\AgentPublishingBundle\Contract\ApiKeyStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\DependencyInjection\Configuration;
+use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Storage\InMemoryArticleStorage;
@@ -16,6 +17,7 @@ use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use Symfony\Component\Scheduler\RecurringMessage;
 
 final class MattLeadsAgentPublishingBundle extends AbstractBundle
 {
@@ -52,13 +54,25 @@ final class MattLeadsAgentPublishingBundle extends AbstractBundle
     {
         $container->import('../config/services.php');
 
-        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>}>, api: array{prefix: string}} $config */
+        /* @var array{storage: string, article_storage: ?string, api_key_storage: ?string, locales: list<string>, default_locale: string, sections: array<string, array{path: string, locales: list<string>}>, api: array{prefix: string}, scheduler: array{enabled: bool, frequency: string, schedule: string}} $config */
         $builder->setParameter('mattleads_agent_publishing.api.prefix', rtrim($config['api']['prefix'], '/'));
 
         $builder->getDefinition(SectionRegistry::class)
             ->setArgument('$sections', $config['sections'])
             ->setArgument('$locales', $config['locales'])
             ->setArgument('$defaultLocale', $config['default_locale']);
+
+        if ($config['scheduler']['enabled']) {
+            if (!class_exists(RecurringMessage::class)) {
+                throw new \InvalidArgumentException('mattleads_agent_publishing.scheduler.enabled needs symfony/scheduler. Install it or run agent-publishing:publish-scheduled from cron.');
+            }
+            $builder->getDefinition(ScheduledPublisher::class)->addTag('scheduler.task', [
+                'trigger' => 'every',
+                'frequency' => $config['scheduler']['frequency'],
+                'schedule' => $config['scheduler']['schedule'],
+                'method' => '__invoke',
+            ]);
+        }
 
         switch ($config['storage']) {
             case 'doctrine':

@@ -3,12 +3,16 @@
 declare(strict_types=1);
 
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
+use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
 return static function (RoutingConfigurator $routes): void {
     $prefix = '%mattleads_agent_publishing.api.prefix%';
+
+    $routes->add('mattleads_agent_publishing_openapi', $prefix . '/openapi.json')
+        ->controller([OpenApiController::class, 'document'])->methods(['GET']);
 
     $routes->add('mattleads_agent_publishing_sections', $prefix . '/sections')
         ->controller([SectionController::class, 'list'])->methods(['GET']);

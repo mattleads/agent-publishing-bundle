@@ -5,12 +5,15 @@ declare(strict_types=1);
 use MattLeads\AgentPublishingBundle\Api\ApiAccess;
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
 use MattLeads\AgentPublishingBundle\Api\ArticleNormalizer;
+use MattLeads\AgentPublishingBundle\Api\OpenApiController;
 use MattLeads\AgentPublishingBundle\Api\SectionController;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineApiKeyStorage;
 use MattLeads\AgentPublishingBundle\Bridge\Doctrine\DoctrineArticleStorage;
 use MattLeads\AgentPublishingBundle\Command\CreateApiKeyCommand;
+use MattLeads\AgentPublishingBundle\Command\PublishScheduledCommand;
 use MattLeads\AgentPublishingBundle\Contract\ApiKeyStorageInterface;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
+use MattLeads\AgentPublishingBundle\Scheduler\ScheduledPublisher;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyAuthenticator;
 use MattLeads\AgentPublishingBundle\Security\ApiKeyManager;
@@ -49,6 +52,8 @@ return static function (ContainerConfigurator $container): void {
         ->args([service(ArticleStorageInterface::class), service('event_dispatcher'), service('clock')->nullOnInvalid()]);
     $services->set(ArticleManager::class)
         ->args([service(ArticleStorageInterface::class), service(SectionRegistry::class), service('clock')->nullOnInvalid()]);
+    $services->set(ScheduledPublisher::class)
+        ->args([service(ArticleStorageInterface::class), service(ArticleWorkflow::class), service('clock')->nullOnInvalid(), service('logger')->nullOnInvalid()]);
 
     // --- security ---------------------------------------------------------------------------------------------
     $services->set(ApiKeyManager::class)
@@ -59,6 +64,9 @@ return static function (ContainerConfigurator $container): void {
     // --- API --------------------------------------------------------------------------------------------------
     $services->set(ApiAccess::class)->args([service('security.token_storage')]);
     $services->set(ArticleNormalizer::class)->args([service(ArticleWorkflow::class)]);
+    $services->set(OpenApiController::class)
+        ->args([param('mattleads_agent_publishing.api.prefix')])
+        ->tag('controller.service_arguments')->public();
     $services->set(SectionController::class)
         ->args([service(SectionRegistry::class), service(ApiAccess::class)])
         ->tag('controller.service_arguments')->public();
@@ -75,5 +83,8 @@ return static function (ContainerConfigurator $container): void {
     // --- console ----------------------------------------------------------------------------------------------
     $services->set(CreateApiKeyCommand::class)
         ->args([service(ApiKeyManager::class), service(SectionRegistry::class)])
+        ->tag('console.command');
+    $services->set(PublishScheduledCommand::class)
+        ->args([service(ScheduledPublisher::class)])
         ->tag('console.command');
 };
