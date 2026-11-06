@@ -227,6 +227,29 @@ final class SeoFieldsTest extends TestCase
         return $result;
     }
 
+    public function testStorageCanRefuseATransition(): void
+    {
+        [$kernel, $client, $container] = $this->boot(['storage' => 'memory'], refusePublishing: true);
+        $keys = $container->get(ApiKeyManager::class);
+        \assert($keys instanceof ApiKeyManager);
+        $editor = $keys->issue('editor', [Scope::ArticlesRead, Scope::ArticlesDraft, Scope::ArticlesPublish])['secret'];
+
+        $this->call($client, 'POST', '/articles', $editor, ['section' => 'blog', 'locale' => 'en', 'title' => 'Refused', 'body' => 'x']);
+        $id = (string) $this->json($client)['id'];
+        $this->call($client, 'POST', '/articles/' . $id . '/publish', $editor, []);
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
+        self::assertSame(['Image https://example.org/x.png: not found.'], $this->json($client)['violations']);
+
+        $viaMcp = $this->tool($client, $editor, 'publish_article', ['id' => $id]);
+        self::assertTrue($viaMcp['isError']);
+        self::assertSame(['Image https://example.org/x.png: not found.'], $viaMcp['structuredContent']['details']);
+
+        $this->call($client, 'GET', '/articles/' . $id, $editor);
+        self::assertSame('draft', $this->json($client)['state']);
+
+        $kernel->shutdown();
+    }
+
     public function testKeyListAndRevokeCommands(): void
     {
         [$kernel, $client, $container] = $this->boot(['storage' => 'memory']);
@@ -260,9 +283,9 @@ final class SeoFieldsTest extends TestCase
      *
      * @return array{TestKernel, KernelBrowser, ContainerInterface}
      */
-    private function boot(array $config): array
+    private function boot(array $config, bool $refusePublishing = false): array
     {
-        $kernel = new TestKernel($config);
+        $kernel = new TestKernel($config, $refusePublishing);
         $kernel->boot();
         if ($kernel->getContainer()->has('doctrine.orm.entity_manager')) {
             $em = $kernel->getContainer()->get('doctrine.orm.entity_manager');

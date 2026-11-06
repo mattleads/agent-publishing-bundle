@@ -9,6 +9,7 @@ use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Mcp\ToolException;
 use MattLeads\AgentPublishingBundle\Model\ApiKey;
 use MattLeads\AgentPublishingBundle\Model\Scope;
+use MattLeads\AgentPublishingBundle\Model\ValidationException;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
 use MattLeads\AgentPublishingBundle\Workflow\InvalidTransitionException;
 
@@ -77,6 +78,8 @@ final class TransitionTool extends AbstractTool
             $article = $this->workflow->apply($article, $this->transition, self::string($arguments, 'reason'), $publishAt, $key->getName());
         } catch (InvalidTransitionException $e) {
             throw new ToolException($e->getMessage());
+        } catch (ValidationException $e) {
+            throw self::invalid($e);
         }
 
         return $this->normalizer->normalize($article);
