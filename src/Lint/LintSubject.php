@@ -30,16 +30,17 @@ final class LintSubject
         public readonly ?string $translationGroup,
         public readonly ?string $articleId,
         private readonly ContentInspector $inspector,
+        public readonly ?string $metaDescription = null,
     ) {}
 
     public static function fromArticle(ArticleInterface $article, Section $section, ContentInspector $inspector): self
     {
-        return new self($section, $article->getLocale(), $article->getTitle(), $article->getSlug(), $article->getSummary(), $article->getBody(), $article->getFormat(), $article->getTags(), $article->getTranslationGroup(), $article->getId(), $inspector);
+        return new self($section, $article->getLocale(), $article->getTitle(), $article->getSlug(), $article->getSummary(), $article->getBody(), $article->getFormat(), $article->getTags(), $article->getTranslationGroup(), $article->getId(), $inspector, $article->getMetaDescription());
     }
 
     public static function fromInput(ArticleInput $input, Section $section, ContentInspector $inspector): self
     {
-        return new self($section, (string) $input->locale, (string) $input->title, $input->slug, $input->summary, (string) $input->body, $input->format ?? 'markdown', $input->tags ?? [], $input->translationGroup, null, $inspector);
+        return new self($section, (string) $input->locale, (string) $input->title, $input->slug, $input->summary, (string) $input->body, $input->format ?? 'markdown', $input->tags ?? [], $input->translationGroup, null, $inspector, $input->metaDescription);
     }
 
     public function content(): ContentSummary

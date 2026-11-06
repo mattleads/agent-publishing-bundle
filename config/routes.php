@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use MattLeads\AgentPublishingBundle\Api\ArticleController;
+use MattLeads\AgentPublishingBundle\Api\AuthorController;
 use MattLeads\AgentPublishingBundle\Api\KeyController;
 use MattLeads\AgentPublishingBundle\Api\LintController;
 use MattLeads\AgentPublishingBundle\Api\OpenApiController;
@@ -22,6 +23,8 @@ return static function (RoutingConfigurator $routes): void {
     $routes->add('mattleads_agent_publishing_sections', $prefix . '/sections')
         ->controller([SectionController::class, 'list'])->methods(['GET']);
 
+    $routes->add('mattleads_agent_publishing_authors', $prefix . '/authors')
+        ->controller([AuthorController::class, 'list'])->methods(['GET']);
     $routes->add('mattleads_agent_publishing_articles', $prefix . '/articles')
         ->controller([ArticleController::class, 'list'])->methods(['GET']);
     $routes->add('mattleads_agent_publishing_article_create', $prefix . '/articles')

@@ -92,16 +92,22 @@ final class TestKernel extends Kernel
 
     public function getProjectDir(): string
     {
-        return sys_get_temp_dir() . '/mattleads_agent_publishing/project';
+        return self::baseDir() . '/project';
     }
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/mattleads_agent_publishing/' . md5(serialize($this->bundleConfig)) . '/cache';
+        return self::baseDir() . '/' . md5(serialize($this->bundleConfig)) . '/cache';
     }
 
     public function getLogDir(): string
     {
-        return sys_get_temp_dir() . '/mattleads_agent_publishing/log';
+        return self::baseDir() . '/log';
+    }
+
+    /** Per checkout, so two clones never share a compiled container that points at the other's sources. */
+    private static function baseDir(): string
+    {
+        return sys_get_temp_dir() . '/mattleads_agent_publishing/' . md5(__DIR__);
     }
 }

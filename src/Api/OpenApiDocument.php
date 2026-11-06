@@ -18,7 +18,7 @@ use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
  */
 final class OpenApiDocument
 {
-    public const VERSION = '0.1';
+    public const VERSION = '0.3';
 
     /** @return array<string, mixed> */
     public static function build(string $prefix, bool $keyManagement = true): array
@@ -43,6 +43,15 @@ final class OpenApiDocument
                     'responses' => $errors(['200' => $json(['$ref' => '#/components/schemas/SectionList'], 'Sections visible to this key.')]),
                 ],
             ],
+            $prefix . '/authors' => [
+                'get' => [
+                    'operationId' => 'listAuthors',
+                    'summary' => 'People who may be credited on articles',
+                    'tags' => ['sections'],
+                    'x-scope' => Scope::ArticlesRead->value,
+                    'responses' => $errors(['200' => $json(['$ref' => '#/components/schemas/AuthorList'], 'Configured authors and who is credited when an article names none.')]),
+                ],
+            ],
             $prefix . '/articles' => [
                 'get' => [
                     'operationId' => 'listArticles',
@@ -55,6 +64,7 @@ final class OpenApiDocument
                         ['name' => 'state', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => $states]],
                         ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1, 'default' => 1]],
                         ['name' => 'per_page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => ArticleFilter::MAX_PER_PAGE, 'default' => 20]],
+                        ['name' => 'sort', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ArticleFilter::SORTS, 'default' => 'updated'], 'description' => '"published": newest published first.'],
                     ],
                     'responses' => $errors([
                         '200' => $json(['$ref' => '#/components/schemas/ArticleList'], 'A page of articles.'),
@@ -85,6 +95,7 @@ final class OpenApiDocument
                 'patch' => [
                     'operationId' => 'updateArticle',
                     'summary' => 'Change fields of a draft or an article in review',
+                    'description' => 'Published and scheduled articles can be edited too when the site enables "editing.published"; that needs the "articles:publish" scope, and a slug change keeps the old slug as a redirect (see "former_slugs").',
                     'tags' => ['articles'],
                     'x-scope' => Scope::ArticlesDraft->value,
                     'parameters' => [$id],
@@ -221,7 +232,16 @@ final class OpenApiDocument
             'format' => ['type' => 'string', 'enum' => ArticleInput::FORMATS, 'default' => 'markdown'],
             'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
             'translation_group' => ['type' => 'string', 'maxLength' => 64, 'description' => 'Shared by the translations of one article.'],
+            'meta_title' => ['type' => 'string', 'maxLength' => 200, 'description' => 'Page title when it should differ from the headline.'],
+            'meta_description' => ['type' => 'string', 'maxLength' => 320, 'description' => 'Meta description; the summary is used when empty.'],
+            'cover_image' => ['type' => 'string', 'maxLength' => 2048, 'format' => 'uri', 'description' => 'Absolute http(s) URL.'],
+            'cover_image_alt' => ['type' => 'string', 'maxLength' => 200],
+            'author' => ['type' => 'string', 'maxLength' => 64, 'description' => 'Key from GET /authors. Empty or omitted credits the publisher.'],
         ];
+        $nullable = [];
+        foreach (['meta_title', 'meta_description', 'cover_image', 'cover_image_alt', 'author'] as $field) {
+            $nullable[$field] = ['type' => ['string', 'null']] + array_diff_key($writable[$field], ['type' => 1]);
+        }
 
         return [
             'openapi' => '3.1.0',
@@ -283,7 +303,8 @@ final class OpenApiDocument
                             'id' => ['type' => 'string'],
                             'section' => ['type' => 'string'],
                             'locale' => ['type' => 'string'],
-                        ] + $writable + [
+                        ] + $nullable + $writable + [
+                            'former_slugs' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Earlier slugs of this published article; the site redirects them to the current URL.'],
                             'summary' => ['type' => ['string', 'null']],
                             'translation_group' => ['type' => ['string', 'null']],
                             'state' => ['type' => 'string', 'enum' => $states],
@@ -294,6 +315,26 @@ final class OpenApiDocument
                             'updated_at' => ['type' => 'string', 'format' => 'date-time'],
                             'published_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
                             'publish_at' => ['type' => ['string', 'null'], 'format' => 'date-time', 'description' => 'Set while the state is "scheduled".'],
+                        ],
+                    ],
+                    'Author' => [
+                        'type' => 'object',
+                        'required' => ['key', 'name', 'same_as'],
+                        'properties' => [
+                            'key' => ['type' => 'string'],
+                            'name' => ['type' => 'string'],
+                            'url' => ['type' => ['string', 'null']],
+                            'image' => ['type' => ['string', 'null']],
+                            'bio' => ['type' => ['string', 'null']],
+                            'same_as' => ['type' => 'array', 'items' => ['type' => 'string']],
+                        ],
+                    ],
+                    'AuthorList' => [
+                        'type' => 'object',
+                        'required' => ['items', 'default'],
+                        'properties' => [
+                            'items' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Author']],
+                            'default' => ['type' => 'string', 'description' => 'Author key credited when an article names none, or "organization".'],
                         ],
                     ],
                     'ApiKey' => [

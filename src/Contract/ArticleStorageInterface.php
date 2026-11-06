@@ -26,6 +26,16 @@ interface ArticleStorageInterface
 
     public function findBySlug(string $section, string $locale, string $slug): ?ArticleInterface;
 
+    /**
+     * The article that used to have this slug, for a permanent redirect to its current URL.
+     * A former slug is recorded when a published or scheduled article is renamed, and forgotten
+     * as soon as any article (the same one included) takes that slug again.
+     */
+    public function findByFormerSlug(string $section, string $locale, string $slug): ?ArticleInterface;
+
+    /** @return list<string> former slugs of the article, oldest first */
+    public function formerSlugs(ArticleInterface $article): array;
+
     /** $input->section, locale, title and body are guaranteed non-null. */
     public function create(ArticleInput $input, string $slug, ?string $createdBy, \DateTimeImmutable $now): ArticleInterface;
 

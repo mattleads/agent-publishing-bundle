@@ -49,4 +49,18 @@ interface ArticleInterface
 
     /** Name of the API key that created the article, or null. */
     public function getCreatedBy(): ?string;
+
+    /** Page title when it should differ from the headline. */
+    public function getMetaTitle(): ?string;
+
+    /** Meta description; the summary stands in when null. */
+    public function getMetaDescription(): ?string;
+
+    /** Absolute URL of the cover image. */
+    public function getCoverImage(): ?string;
+
+    public function getCoverImageAlt(): ?string;
+
+    /** Key of a configured author; null means the publisher organisation. */
+    public function getAuthor(): ?string;
 }

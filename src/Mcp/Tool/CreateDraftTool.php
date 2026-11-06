@@ -43,6 +43,11 @@ final class CreateDraftTool extends AbstractTool
             'format' => ['type' => 'string', 'enum' => ArticleInput::FORMATS],
             'tags' => ['type' => 'array', 'items' => ['type' => 'string'], 'maxItems' => ArticleInput::MAX_TAGS],
             'translation_group' => ['type' => 'string', 'description' => 'Shared by the translations of one article.'],
+            'meta_title' => ['type' => 'string', 'maxLength' => 200, 'description' => 'Page title when it should differ from the headline; 50-60 characters.'],
+            'meta_description' => ['type' => 'string', 'maxLength' => 320, 'description' => 'Meta description, 70-160 characters. The summary is used when omitted.'],
+            'cover_image' => ['type' => 'string', 'maxLength' => 2048, 'description' => 'Absolute http(s) URL of the cover image.'],
+            'cover_image_alt' => ['type' => 'string', 'maxLength' => 200],
+            'author' => ['type' => 'string', 'maxLength' => 64, 'description' => 'Author key from list_authors. Omit to credit the publisher.'],
         ];
     }
 

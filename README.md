@@ -75,6 +75,11 @@ The secret is printed once. Scopes:
 
 A key with no `--section` can write to every section. `--expires="+90 days"` sets an expiry.
 
+```bash
+php bin/console agent-publishing:api-key:list                 # ids, names, scopes, sections, expiry, last use; never secrets
+php bin/console agent-publishing:api-key:revoke seo-agent     # by name (when unique) or by id
+```
+
 ### Keys over the API
 
 With `keys:manage`, a platform can issue keys for its own agents without shell access:
@@ -102,8 +107,10 @@ The OpenAPI 3.1 document is served at `GET /api/publisher/v1/openapi.json`. Poin
 
 ```
 GET    /api/publisher/v1/openapi.json
-GET    /api/publisher/v1/articles?section=blog&locale=en&state=draft&page=1&per_page=20
-POST   /api/publisher/v1/articles                { section, locale, title, body, format?, slug?, summary?, tags?, translation_group? }
+GET    /api/publisher/v1/articles?section=blog&locale=en&state=draft&page=1&per_page=20&sort=updated|published
+GET    /api/publisher/v1/authors
+POST   /api/publisher/v1/articles                { section, locale, title, body, format?, slug?, summary?, tags?, translation_group?,
+                                                   meta_title?, meta_description?, cover_image?, cover_image_alt?, author? }
 GET    /api/publisher/v1/articles/{id}
 PATCH  /api/publisher/v1/articles/{id}
 POST   /api/publisher/v1/articles/{id}/submit
@@ -123,6 +130,48 @@ Send the key as `Authorization: Bearer apb_...`. Errors are JSON with `error` an
 ## Workflow
 
 `draft` → `in_review` (submit) → `published` (approve) or back to `draft` (reject). A key with `articles:publish` can publish from `draft` or `in_review` directly, or schedule with `publish_at`, which moves the article to `scheduled`. `archive` ends the life of a published or scheduled article. Every transition dispatches `MattLeads\AgentPublishingBundle\Workflow\ArticleTransitioned`.
+
+### Editing live articles and slug redirects
+
+By default only drafts and articles in review can be edited. To fix a published or scheduled article in place:
+
+```yaml
+mattleads_agent_publishing:
+    editing: { published: true }
+```
+
+Editing a live article then needs `articles:publish` (a drafting key never changes what readers see). When its slug changes, the old slug is kept as a former slug: `ArticleStorageInterface::findByFormerSlug()` returns the article so your controller can answer with a permanent redirect to its current URL, and the API returns `former_slugs`. Every former slug points at the article, not at the next slug, so a redirect is always one hop. A former slug is forgotten as soon as any article takes it again.
+
+```php
+#[Route('/blog/{slug}', name: 'blog_show', defaults: ['_agent_publishing_section' => 'blog'])]
+public function show(string $slug): Response
+{
+    $article = $this->articles->findBySlug('blog', 'en', $slug);
+    if (null === $article && null !== $moved = $this->articles->findByFormerSlug('blog', 'en', $slug)) {
+        if (ArticleState::Published === $moved->getState()) {
+            return $this->redirect($this->urls->urlFor($moved), Response::HTTP_MOVED_PERMANENTLY);
+        }
+    }
+    // ...
+}
+```
+
+### Authors
+
+```yaml
+mattleads_agent_publishing:
+    authors:
+        jane:
+            name: Jane Doe
+            url: https://example.com/about
+            image: https://example.com/jane.jpg
+            bio: Writes about Symfony in production.
+            same_as: [https://github.com/janedoe, https://www.linkedin.com/in/janedoe]
+    seo:
+        default_author: organization          # or an author key
+```
+
+Agents read the list with `GET /authors` or the `list_authors` tool and pass a key as `author`; an unknown key is refused. With no author, the publisher organisation is credited (or `default_author`). `agent_publishing_author(article)` returns the credited person as an array for your byline, or `null`.
 
 ### Scheduled publishing
 
@@ -219,7 +268,7 @@ mattleads_agent_publishing:
 {{ agent_publishing_jsonld(article, { image: asset('cover.png') }) }}   {# second argument overrides or adds keys #}
 ```
 
-It emits a `<script type="application/ld+json">` with headline, description, dates, language, section, keywords, author and publisher. Without Twig, call `JsonLdBuilder::script()` or `build()` yourself.
+It emits a `<script type="application/ld+json">` with headline, description (`meta_description`, else `summary`), image (`cover_image`), dates, language, section, keywords, author and publisher. The author is the article's configured person with `url`, `image` and `sameAs`; otherwise the legacy `seo.author`; otherwise the publisher organisation. Without Twig, call `JsonLdBuilder::script()` or `build()` yourself.
 
 **Sitemap** at `/sitemap-publisher.xml` lists every published article with `lastmod`, and `hreflang` alternates for articles that share a `translation_group`, including `x-default` for the default locale. Reference it from your main sitemap index or `robots.txt`.
 
@@ -299,7 +348,7 @@ mattleads_agent_publishing:
     stats_storage: App\Publishing\StatsStorage         # implements StatsStorageInterface
 ```
 
-Your `ArticleStorageInterface` returns objects implementing `ArticleInterface`, which is read-only. All mutation goes through the storage, so the bundle never touches your entities directly.
+Your `ArticleStorageInterface` returns objects implementing `ArticleInterface`, which is read-only. All mutation goes through the storage, so the bundle never touches your entities directly. Since 0.3 the storage also keeps former slugs (`findByFormerSlug()`, `formerSlugs()`) and honours `ArticleFilter::$sort`.
 
 ## License
 

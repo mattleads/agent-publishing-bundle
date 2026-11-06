@@ -68,6 +68,21 @@ class Article implements ArticleInterface
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $createdBy = null;
 
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $metaTitle = null;
+
+    #[ORM\Column(length: 320, nullable: true)]
+    private ?string $metaDescription = null;
+
+    #[ORM\Column(length: 2048, nullable: true)]
+    private ?string $coverImage = null;
+
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $coverImageAlt = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $author = null;
+
     public function __construct(
         string $id,
         string $section,
@@ -176,6 +191,31 @@ class Article implements ArticleInterface
         return $this->createdBy;
     }
 
+    public function getMetaTitle(): ?string
+    {
+        return $this->metaTitle;
+    }
+
+    public function getMetaDescription(): ?string
+    {
+        return $this->metaDescription;
+    }
+
+    public function getCoverImage(): ?string
+    {
+        return $this->coverImage;
+    }
+
+    public function getCoverImageAlt(): ?string
+    {
+        return $this->coverImageAlt;
+    }
+
+    public function getAuthor(): ?string
+    {
+        return $this->author;
+    }
+
     /** Applies the provided (non-null) fields of an input and stamps updatedAt. */
     public function apply(ArticleInput $input, ?string $slug, \DateTimeImmutable $now): void
     {
@@ -199,6 +239,22 @@ class Article implements ArticleInterface
         }
         if (null !== $input->translationGroup) {
             $this->translationGroup = '' === $input->translationGroup ? null : $input->translationGroup;
+        }
+        // An empty string clears an optional field, as for summary and translation_group.
+        if (null !== $input->metaTitle) {
+            $this->metaTitle = '' === $input->metaTitle ? null : $input->metaTitle;
+        }
+        if (null !== $input->metaDescription) {
+            $this->metaDescription = '' === $input->metaDescription ? null : $input->metaDescription;
+        }
+        if (null !== $input->coverImage) {
+            $this->coverImage = '' === $input->coverImage ? null : $input->coverImage;
+        }
+        if (null !== $input->coverImageAlt) {
+            $this->coverImageAlt = '' === $input->coverImageAlt ? null : $input->coverImageAlt;
+        }
+        if (null !== $input->author) {
+            $this->author = '' === $input->author ? null : $input->author;
         }
         $this->updatedAt = $now;
     }

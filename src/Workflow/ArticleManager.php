@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace MattLeads\AgentPublishingBundle\Workflow;
 
+use MattLeads\AgentPublishingBundle\Author\AuthorRegistry;
 use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Model\ArticleInput;
 use MattLeads\AgentPublishingBundle\Model\ArticleInterface;
+use MattLeads\AgentPublishingBundle\Model\ArticleState;
 use MattLeads\AgentPublishingBundle\Model\ValidationException;
 use MattLeads\AgentPublishingBundle\Section\SectionRegistry;
 use Psr\Clock\ClockInterface;
@@ -23,6 +25,8 @@ final class ArticleManager
         private readonly ArticleStorageInterface $storage,
         private readonly SectionRegistry $sections,
         private readonly ?ClockInterface $clock = null,
+        private readonly AuthorRegistry $authors = new AuthorRegistry(),
+        private readonly bool $editPublished = false,
     ) {
         $this->slugger = new AsciiSlugger();
     }
@@ -35,6 +39,7 @@ final class ArticleManager
         $section = (string) $input->section;
         $locale = (string) $input->locale;
         $this->assertSectionAndLocale($section, $locale);
+        $this->assertAuthor($input);
         $slug = $this->uniqueSlug($section, $locale, $input->slug ?? (string) $input->title, null);
 
         return $this->storage->create($input, $slug, $createdBy, $this->now());
@@ -52,9 +57,10 @@ final class ArticleManager
         if (null !== $input->locale && $input->locale !== $article->getLocale()) {
             throw new ValidationException(['Field "locale" cannot change after creation.']);
         }
-        if (!$article->getState()->isEditable()) {
+        if (!$this->isEditable($article)) {
             throw new InvalidTransitionException(\sprintf('Cannot edit an article in state "%s".', $article->getState()->value));
         }
+        $this->assertAuthor($input);
 
         $slug = null;
         if (null !== $input->slug && $input->slug !== $article->getSlug()) {
@@ -65,6 +71,25 @@ final class ArticleManager
         }
 
         return $this->storage->update($article, $input, $slug, $this->now());
+    }
+
+    public function isEditable(ArticleInterface $article): bool
+    {
+        return $article->getState()->isEditable() || ($this->editPublished && self::isLive($article));
+    }
+
+    /** Published or scheduled: changes reach readers, so they need the "articles:publish" scope. */
+    public static function isLive(ArticleInterface $article): bool
+    {
+        return \in_array($article->getState(), [ArticleState::Published, ArticleState::Scheduled], true);
+    }
+
+    private function assertAuthor(ArticleInput $input): void
+    {
+        if (null === $input->author || '' === $input->author || null !== $this->authors->get($input->author)) {
+            return;
+        }
+        throw new ValidationException([[] === $this->authors->keys() ? 'Field "author" cannot be used: no authors are configured.' : \sprintf('Field "author" must be one of: %s.', implode(', ', $this->authors->keys()))]);
     }
 
     private function assertSectionAndLocale(string $section, string $locale): void

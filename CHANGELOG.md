@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-06
+
+### Upgrade note
+- Doctrine users: run `doctrine:migrations:diff`. It adds five nullable columns to `agent_publishing_article` (`meta_title`, `meta_description`, `cover_image`, `cover_image_alt`, `author`) and the table `agent_publishing_slug_redirect`.
+- Custom storages (BC break): implement `ArticleStorageInterface::findByFormerSlug()` and `formerSlugs()`, honour `ArticleFilter::$sort`, and add `getMetaTitle()`, `getMetaDescription()`, `getCoverImage()`, `getCoverImageAlt()` and `getAuthor()` to your `ArticleInterface` implementation.
+- JSON-LD now credits the publisher organisation as `author` when no person applies (previously the key was omitted).
+
+### Added
+- Article fields `meta_title`, `meta_description`, `cover_image` (absolute http(s) URL), `cover_image_alt` and `author`, on REST, MCP, lint and JSON-LD (`description`, `image`, `author`).
+- `authors` config, `seo.default_author`, `GET /authors` and the `list_authors` tool; unknown `author` keys are refused. Twig `agent_publishing_author()`.
+- `editing.published: true` allows editing published and scheduled articles with `articles:publish`.
+- Former slugs: renaming a published or scheduled article keeps the old slug for a one-hop permanent redirect (`findByFormerSlug()`, `former_slugs` in responses, table `agent_publishing_slug_redirect`).
+- `sort=published` on article listings (`ArticleFilter::$sort`) for newest-published-first public lists.
+- Lint rule `meta_description`.
+- Console commands `agent-publishing:api-key:list` and `agent-publishing:api-key:revoke`.
+
+### Fixed
+- The test kernel's cache directory is per checkout, so two clones no longer share a compiled container.
+
 ## [0.2.0] - 2026-11-06
 
 ### Upgrade note

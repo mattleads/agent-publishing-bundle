@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MattLeads\AgentPublishingBundle\Seo;
 
+use MattLeads\AgentPublishingBundle\Author\AuthorRegistry;
 use MattLeads\AgentPublishingBundle\Model\ArticleInterface;
 
 /**
@@ -23,6 +24,7 @@ final class JsonLdBuilder
         private readonly string $type = 'Article',
         private readonly array $publisher = ['name' => null, 'url' => null, 'logo' => null],
         private readonly array $author = ['name' => null, 'url' => null],
+        private readonly AuthorRegistry $authors = new AuthorRegistry(),
     ) {}
 
     /**
@@ -43,8 +45,11 @@ final class JsonLdBuilder
             'articleSection' => $article->getSection(),
             'dateModified' => $article->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
-        if (null !== $summary = $article->getSummary()) {
-            $data['description'] = $summary;
+        if (null !== $description = $article->getMetaDescription() ?? $article->getSummary()) {
+            $data['description'] = $description;
+        }
+        if (null !== $image = $article->getCoverImage()) {
+            $data['image'] = $image;
         }
         if (null !== $published = $article->getPublishedAt()) {
             $data['datePublished'] = $published->format(\DateTimeInterface::ATOM);
@@ -52,14 +57,21 @@ final class JsonLdBuilder
         if ([] !== $article->getTags()) {
             $data['keywords'] = implode(', ', $article->getTags());
         }
-        if (null !== $this->author['name']) {
-            $data['author'] = array_filter(['@type' => 'Person', 'name' => $this->author['name'], 'url' => $this->author['url']]);
-        }
+        $publisher = null;
         if (null !== $this->publisher['name']) {
             $publisher = array_filter(['@type' => 'Organization', 'name' => $this->publisher['name'], 'url' => $this->publisher['url']]);
             if (null !== $this->publisher['logo']) {
                 $publisher['logo'] = ['@type' => 'ImageObject', 'url' => $this->publisher['logo']];
             }
+        }
+        if (null !== $person = $this->authors->resolve($article)) {
+            $data['author'] = array_filter(['@type' => 'Person', 'name' => $person->name, 'url' => $person->url, 'image' => $person->image, 'sameAs' => $person->sameAs]);
+        } elseif (null !== $this->author['name']) {
+            $data['author'] = array_filter(['@type' => 'Person', 'name' => $this->author['name'], 'url' => $this->author['url']]);
+        } elseif (null !== $publisher) {
+            $data['author'] = $publisher;
+        }
+        if (null !== $publisher) {
             $data['publisher'] = $publisher;
         }
 

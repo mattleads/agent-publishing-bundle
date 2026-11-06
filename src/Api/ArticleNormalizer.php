@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace MattLeads\AgentPublishingBundle\Api;
 
+use MattLeads\AgentPublishingBundle\Contract\ArticleStorageInterface;
 use MattLeads\AgentPublishingBundle\Model\ArticleInterface;
 use MattLeads\AgentPublishingBundle\Workflow\ArticleWorkflow;
 
 final class ArticleNormalizer
 {
-    public function __construct(private readonly ArticleWorkflow $workflow) {}
+    public function __construct(private readonly ArticleWorkflow $workflow, private readonly ArticleStorageInterface $storage) {}
 
     /** @return array<string, mixed> */
     public function normalize(ArticleInterface $article): array
@@ -25,6 +26,12 @@ final class ArticleNormalizer
             'format' => $article->getFormat(),
             'tags' => $article->getTags(),
             'translation_group' => $article->getTranslationGroup(),
+            'meta_title' => $article->getMetaTitle(),
+            'meta_description' => $article->getMetaDescription(),
+            'cover_image' => $article->getCoverImage(),
+            'cover_image_alt' => $article->getCoverImageAlt(),
+            'author' => $article->getAuthor(),
+            'former_slugs' => $this->storage->formerSlugs($article),
             'state' => $article->getState()->value,
             'transitions' => array_values(array_filter(ArticleWorkflow::transitions(), fn(string $t) => $this->workflow->can($article, $t))),
             'review_note' => $article->getReviewNote(),
